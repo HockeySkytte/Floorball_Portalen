@@ -1,0 +1,197 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+enum GlobalRole {
+  ADMIN
+  USER
+}
+
+enum TeamRole {
+  LEADER
+  PLAYER
+  SUPPORTER
+}
+
+enum ApprovalStatus {
+  PENDING_ADMIN
+  PENDING_LEADER
+  APPROVED
+  REJECTED
+}
+
+enum TeamColor {
+  RED
+  WHITE
+  BLACK
+  BLUE
+  GREEN
+}
+
+enum StatsFileKind {
+  EVENTS
+  PLAYERS
+}
+
+model Team {
+  id        String   @id @default(cuid())
+  name      String   @unique
+  themePrimary   TeamColor @default(RED)
+  themeSecondary TeamColor @default(WHITE)
+  memberships TeamMembership[]
+  statsFiles StatsFile[]
+  statsEvents StatsEvent[]
+  statsPlayers StatsPlayer[]
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model User {
+  id           String         @id @default(cuid())
+  globalRole   GlobalRole     @default(USER)
+
+  email        String         @unique
+  username     String         @unique
+  passwordHash String
+
+  approvedById String?
+  approvedBy   User?          @relation("UserApprovals", fields: [approvedById], references: [id], onDelete: SetNull)
+  approvals    User[]         @relation("UserApprovals")
+  approvedAt   DateTime?
+
+  createdAt    DateTime       @default(now())
+  updatedAt    DateTime       @updatedAt
+
+  memberships  TeamMembership[]
+
+  approvedMemberships TeamMembership[] @relation("MembershipApprovals")
+
+  uploadedStatsFiles StatsFile[] @relation("StatsFileUploader")
+}
+
+model TeamMembership {
+  id           String         @id @default(cuid())
+  userId       String
+  user         User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  teamId       String
+  team         Team           @relation(fields: [teamId], references: [id], onDelete: Cascade)
+
+  role         TeamRole
+  status       ApprovalStatus
+
+  approvedById String?
+  approvedBy   User?          @relation("MembershipApprovals", fields: [approvedById], references: [id], onDelete: SetNull)
+  approvedAt   DateTime?
+
+  createdAt    DateTime       @default(now())
+  updatedAt    DateTime       @updatedAt
+
+  @@unique([userId, teamId])
+  @@index([teamId, role, status])
+}
+
+model StatsFile {
+  id           String        @id @default(cuid())
+  teamId       String
+  team         Team          @relation(fields: [teamId], references: [id], onDelete: Cascade)
+
+  uploadedById String
+  uploadedBy   User          @relation("StatsFileUploader", fields: [uploadedById], references: [id], onDelete: Cascade)
+
+  kind         StatsFileKind
+  originalName String
+  gameId       String?
+  gameDate     DateTime?
+  competition  String?
+
+  content      String
+  createdAt    DateTime      @default(now())
+
+  events       StatsEvent[]  @relation("StatsFileEvents")
+  players      StatsPlayer[] @relation("StatsFilePlayers")
+
+  @@index([teamId, kind, createdAt])
+  @@index([teamId, gameId])
+}
+
+model StatsEvent {
+  id          String     @id @default(cuid())
+  teamId      String
+  team        Team       @relation(fields: [teamId], references: [id], onDelete: Cascade)
+
+  fileId      String
+  file        StatsFile  @relation("StatsFileEvents", fields: [fileId], references: [id], onDelete: Cascade)
+
+  rowId       Int?
+  timestamp   DateTime?
+  event       String
+  teamName    String?
+  venue       String?
+  teamHome    String?
+  teamAway    String?
+  period      Int?
+  perspective String?
+  strength    String?
+
+  p1No        Int?
+  p1Name      String?
+  p2No        Int?
+  p2Name      String?
+  gNo         Int?
+  goalieName  String?
+
+  homeLine    String?
+  homePlayers String?
+  homePlayersNames String?
+  awayLine    String?
+  awayPlayers String?
+  awayPlayersNames String?
+
+  xM          Float?
+  yM          Float?
+
+  gameId      String?
+  gameDate    DateTime?
+  competition String?
+  videoUrl    String?
+  videoTime   Int?
+  aimX        Float?
+  aimY        Float?
+
+  createdAt   DateTime @default(now())
+
+  @@index([teamId, createdAt])
+  @@index([teamId, gameId])
+}
+
+model StatsPlayer {
+  id          String     @id @default(cuid())
+  teamId      String
+  team        Team       @relation(fields: [teamId], references: [id], onDelete: Cascade)
+
+  fileId      String
+  file        StatsFile  @relation("StatsFilePlayers", fields: [fileId], references: [id], onDelete: Cascade)
+
+  number      Int?
+  name        String?
+  line        String?
+  venue       String?
+  teamName    String?
+  teamColor   String?
+  gameId      String?
+  gameDate    DateTime?
+  competition String?
+
+  createdAt   DateTime @default(now())
+
+  @@index([teamId, createdAt])
+  @@index([teamId, gameId])
+}

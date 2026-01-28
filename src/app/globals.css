@@ -1,0 +1,88 @@
+@import "tailwindcss";
+
+:root {
+  --background: #ffffff;
+  --foreground: #171717;
+
+  /* Theme (default) */
+  --brand: #111827;
+  --brand-foreground: #ffffff;
+  --brand-secondary: #ffffff;
+  --app-background: var(--brand-secondary);
+
+  /* Surfaces (cards, dropdowns) */
+  --surface: #ffffff;
+  --surface-foreground: #171717;
+  --surface-border: color-mix(in srgb, #000000 10%, transparent);
+
+  /* Nav gradient derived from theme */
+  --nav-gradient: linear-gradient(
+    90deg,
+    color-mix(in srgb, var(--brand) 35%, var(--app-background)) 0%,
+    var(--app-background) 65%
+  );
+
+  /* Topbar (desktop/right side) */
+  --topbar-bg: color-mix(in srgb, var(--brand) 22%, white);
+  --topbar-foreground: #111827;
+
+  --sidebar-from: color-mix(in srgb, var(--brand) 96%, black);
+  --sidebar-to: color-mix(in srgb, var(--brand) 35%, white);
+  --sidebar-gradient: linear-gradient(180deg, var(--sidebar-from) 0%, var(--sidebar-to) 100%);
+}
+
+/* Team themes */
+html[data-team-primary="RED"] {
+  --brand: #dc2626;
+  --brand-foreground: #ffffff;
+}
+
+html[data-team-primary="WHITE"] {
+  --brand: #ffffff;
+  --brand-foreground: #111827;
+}
+
+html[data-team-primary="BLACK"] {
+  --brand: #111827;
+  --brand-foreground: #ffffff;
+}
+
+html[data-team-primary="BLUE"] {
+  --brand: #2563eb;
+  --brand-foreground: #ffffff;
+}
+
+html[data-team-primary="GREEN"] {
+  --brand: #16a34a;
+  --brand-foreground: #ffffff;
+}
+
+/* Secondary/background */
+html[data-team-secondary="WHITE"] {
+  --brand-secondary: #ffffff;
+  --app-background: #ffffff;
+  --foreground: #171717;
+  --sidebar-from: color-mix(in srgb, var(--brand) 96%, black);
+  --sidebar-to: color-mix(in srgb, var(--brand) 35%, white);
+}
+
+html[data-team-secondary="BLACK"] {
+  --brand-secondary: #0a0a0a;
+  --app-background: #0a0a0a;
+  --foreground: #ededed;
+  --sidebar-from: color-mix(in srgb, var(--brand) 25%, white);
+  --sidebar-to: color-mix(in srgb, var(--brand) 96%, black);
+}
+
+@theme inline {
+  --color-background: var(--app-background);
+  --color-foreground: var(--foreground);
+  --font-sans: var(--font-geist-sans);
+  --font-mono: var(--font-geist-mono);
+}
+
+body {
+  background: var(--app-background);
+  color: var(--foreground);
+  font-family: Arial, Helvetica, sans-serif;
+}
