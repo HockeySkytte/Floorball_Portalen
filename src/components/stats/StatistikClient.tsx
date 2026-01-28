@@ -41,6 +41,153 @@ type StatsEvent = {
 
 type TabKey = "events" | "shotmap" | "heatmap" | "tabeller" | "video";
 
+type ShotKind = "GOAL" | "SHOT" | "MISS" | "BLOCK" | "PENALTY";
+
+function classifyShotKind(event: string): ShotKind {
+  const e = String(event ?? "").trim().toLowerCase();
+  if (e.includes("goal")) return "GOAL";
+  if (e.includes("miss")) return "MISS";
+  if (e.includes("block")) return "BLOCK";
+  if (e.includes("penalty")) return "PENALTY";
+  return "SHOT";
+}
+
+function isFiniteNumber(n: unknown): n is number {
+  return typeof n === "number" && Number.isFinite(n);
+}
+
+function toHalfRinkPoint(
+  xM: number,
+  yM: number,
+  half: "left" | "right"
+): { x: number; y: number } | null {
+  // Data uses center-origin meters: x in [-20,20], y in [-10,10]
+  // Each half-rink displays x in [-20,0] (left) or [0,20] (right), normalized to [0,1]
+  const x = clamp(xM, -20, 20);
+  const y = clamp(yM, -10, 10);
+
+  if (half === "left") {
+    if (x > 0) return null;
+    return { x: (x + 20) / 20, y: (y + 10) / 20 };
+  }
+
+  if (x < 0) return null;
+  return { x: x / 20, y: (y + 10) / 20 };
+}
+
+function clamp(v: number, min: number, max: number) {
+  return Math.min(max, Math.max(min, v));
+}
+
+function ShotMarker({
+  kind,
+  x,
+  y,
+  color,
+}: {
+  kind: ShotKind;
+  x: number;
+  y: number;
+  color: string;
+}) {
+  const cx = `${(x * 100).toFixed(4)}%`;
+  const cy = `${(y * 100).toFixed(4)}%`;
+  const common = {
+    fill: "none",
+    stroke: color,
+    strokeWidth: 2,
+    vectorEffect: "non-scaling-stroke" as const,
+  };
+
+  switch (kind) {
+    case "SHOT":
+      return <circle cx={cx} cy={cy} r={6} {...common} />;
+    case "MISS":
+      return <polygon points={`${cx},${`${(y * 100 - 1.0).toFixed(4)}%`} ${`${(x * 100 - 0.8).toFixed(4)}%`},${`${(y * 100 + 0.7).toFixed(4)}%`} ${`${(x * 100 + 0.8).toFixed(4)}%`},${`${(y * 100 + 0.7).toFixed(4)}%`}`} {...common} />;
+    case "BLOCK":
+      return <rect x={`calc(${cx} - 6px)`} y={`calc(${cy} - 6px)`} width={12} height={12} rx={1} {...common} />;
+    case "PENALTY":
+      return <polygon points={`${cx},${`${(y * 100 - 1.0).toFixed(4)}%`} ${`${(x * 100 - 0.9).toFixed(4)}%`},${cy} ${cx},${`${(y * 100 + 1.0).toFixed(4)}%`} ${`${(x * 100 + 0.9).toFixed(4)}%`},${cy}`} {...common} />;
+    case "GOAL":
+    default:
+      // 5-point star
+      return (
+        <path
+          d={
+            `M 0,-7 L 2,-2 L 7,-2 L 3,1 L 4,6 L 0,3 L -4,6 L -3,1 L -7,-2 L -2,-2 Z`
+          }
+          transform={`translate(${cx.replace("%", "")}, ${cy.replace("%", "")})`}
+          transform-origin={`${cx} ${cy}`}
+          {...common}
+        />
+      );
+  }
+}
+
+function HalfRink({
+  title,
+  half,
+  events,
+  selectedTeam,
+}: {
+  title: string;
+  half: "left" | "right";
+  events: StatsEvent[];
+  selectedTeam: string;
+}) {
+  const selected = String(selectedTeam ?? "").trim();
+  const offenseColor = "var(--brand)";
+  const defenseColor = "var(--surface-foreground)";
+
+  const points = useMemo(() => {
+    const out: Array<{
+      id: string;
+      kind: ShotKind;
+      x: number;
+      y: number;
+      color: string;
+    }> = [];
+
+    for (const e of events) {
+      if (!isFiniteNumber(e.xM) || !isFiniteNumber(e.yM)) continue;
+      const p = toHalfRinkPoint(e.xM, e.yM, half);
+      if (!p) continue;
+
+      const isOffense = String(e.teamName ?? "").trim() === selected;
+      out.push({
+        id: e.id,
+        kind: classifyShotKind(e.event),
+        x: p.x,
+        y: p.y,
+        color: isOffense ? offenseColor : defenseColor,
+      });
+    }
+
+    return out;
+  }, [events, half, selected]);
+
+  return (
+    <div className="space-y-2">
+      <div className="text-sm font-semibold text-zinc-600">{title}</div>
+      <div className="relative overflow-hidden rounded-md border border-[color:var(--surface-border)] bg-[color:var(--surface)]">
+        <div className="relative aspect-[1/1] w-full">
+          <img
+            src="/bane.png"
+            alt="Bane"
+            className="absolute inset-0 h-full w-full object-cover"
+            style={{ objectPosition: half === "left" ? "left center" : "right center" }}
+          />
+          <svg className="absolute inset-0 h-full w-full" viewBox="0 0 100 100" preserveAspectRatio="none">
+            {points.map((p) => (
+              <ShotMarker key={p.id} kind={p.kind} x={p.x} y={p.y} color={p.color} />
+            ))}
+          </svg>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function StatistikClient({ isLeader }: { isLeader: boolean }) {
   const [tab, setTab] = useState<TabKey>("events");
 
@@ -222,6 +369,43 @@ export default function StatistikClient({ isLeader }: { isLeader: boolean }) {
         for (const name of onIceSel) if (!names.has(name)) return false;
       }
 
+      return true;
+    });
+  }, [events, filters]);
+
+  const shotMapEvents = useMemo(() => {
+    const selectedTeam = String(filters.perspektiv ?? "").trim();
+    if (!selectedTeam) return [];
+
+    const gameSel = norm(filters.kamp);
+    const playerSel = norm(filters.spiller);
+    const goalieSel = norm(filters.maalmand);
+    const onIceSel = filters.paaBanen.map((x) => norm(x)).filter(Boolean);
+
+    return events.filter((e) => {
+      // Only show shot-like events on the map
+      const kind = classifyShotKind(e.event);
+      if (kind === "PENALTY" || kind === "BLOCK" || kind === "MISS" || kind === "SHOT" || kind === "GOAL") {
+        // ok
+      }
+
+      if (gameSel && norm(e.gameId) !== gameSel) return false;
+      if (goalieSel && norm(e.goalieName) !== goalieSel) return false;
+
+      if (playerSel) {
+        const matches = norm(e.p1Name) === playerSel || norm(e.p2Name) === playerSel;
+        if (!matches) return false;
+      }
+
+      if (onIceSel.length > 0) {
+        const names = new Set(
+          [...splitOnIce(e.homePlayersNames), ...splitOnIce(e.awayPlayersNames)].map((n) => norm(n))
+        );
+        for (const name of onIceSel) if (!names.has(name)) return false;
+      }
+
+      // Require coordinates
+      if (!isFiniteNumber(e.xM) || !isFiniteNumber(e.yM)) return false;
       return true;
     });
   }, [events, filters]);
@@ -452,6 +636,70 @@ export default function StatistikClient({ isLeader }: { isLeader: boolean }) {
                 </table>
               </div>
             )}
+          </div>
+        </section>
+      ) : tab === "shotmap" ? (
+        <section className="space-y-6">
+          <div className="rounded-md border border-[color:var(--surface-border)] p-4">
+            <div className="flex items-center justify-between gap-3">
+              <h2 className="text-lg font-semibold">Shot Map</h2>
+              <button
+                type="button"
+                onClick={loadEvents}
+                disabled={eventsLoading}
+                className="rounded-md border border-zinc-300 bg-white px-3 py-1.5 text-sm disabled:opacity-50"
+              >
+                Opdater
+              </button>
+            </div>
+
+            {eventsError ? (
+              <p className="mt-2 text-sm text-red-600">{eventsError}</p>
+            ) : null}
+
+            {String(filters.perspektiv ?? "").trim().length === 0 ? (
+              <p className="mt-4 text-sm text-zinc-600">Vælg et Perspektiv.</p>
+            ) : shotMapEvents.length === 0 ? (
+              <p className="mt-4 text-sm text-zinc-600">Ingen events.</p>
+            ) : (
+              <div className="mt-4 grid gap-4 md:grid-cols-[1fr_1fr]">
+                <HalfRink
+                  title="Defensive End"
+                  half="left"
+                  events={shotMapEvents}
+                  selectedTeam={String(filters.perspektiv ?? "").trim()}
+                />
+                <HalfRink
+                  title="Offensive End"
+                  half="right"
+                  events={shotMapEvents}
+                  selectedTeam={String(filters.perspektiv ?? "").trim()}
+                />
+              </div>
+            )}
+
+            <div className="mt-5 flex flex-wrap items-center justify-center gap-4 text-sm text-zinc-700">
+              <div className="flex items-center gap-2">
+                <span className="inline-block h-3 w-3 rounded-full border-2 border-[color:var(--surface-foreground)]" />
+                <span>Shot</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <span className="inline-block h-0 w-0 border-l-[7px] border-r-[7px] border-b-[12px] border-l-transparent border-r-transparent border-b-[color:var(--surface-foreground)]" />
+                <span>Miss</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <span className="inline-block h-3 w-3 border-2 border-[color:var(--surface-foreground)]" />
+                <span>Block</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <span className="inline-block h-3 w-3 rotate-45 border-2 border-[color:var(--surface-foreground)]" />
+                <span>Penalty</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <span className="text-base text-[color:var(--surface-foreground)]">★</span>
+                <span>Goal</span>
+              </div>
+            </div>
           </div>
         </section>
       ) : (
