@@ -1,14 +1,14 @@
 import { NextResponse } from "next/server";
-import { requireLeader } from "@/lib/auth";
+import { requireLeaderOrAdmin } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 
 export async function DELETE(
   _req: Request,
   ctx: { params: Promise<{ id: string }> }
 ) {
-  const leader = await requireLeader();
+  const actor = await requireLeaderOrAdmin();
   const { id } = await ctx.params;
-  const teamId = leader.activeTeamId;
+  const teamId = actor.activeTeamId;
   if (!teamId) {
     return NextResponse.json({ message: "Ingen valgt hold." }, { status: 400 });
   }

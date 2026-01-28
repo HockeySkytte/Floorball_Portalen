@@ -4,7 +4,7 @@ import StatistikClient from "@/components/stats/StatistikClient";
 
 export default async function StatistikPage() {
   const user = await getCurrentUser();
-  const isLeader = user?.activeRole === TeamRole.LEADER;
+  const isLeader = !!user && (user.isAdmin || user.activeRole === TeamRole.LEADER);
 
   return <StatistikClient isLeader={isLeader} />;
 }

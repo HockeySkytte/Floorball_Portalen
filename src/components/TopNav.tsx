@@ -4,7 +4,8 @@ import Link from "next/link";
 
 export type TopNavUser = {
   username: string;
-  role: string;
+  isAdmin: boolean;
+  teamRole: string | null;
 };
 
 export default function TopNav({
@@ -42,15 +43,15 @@ export default function TopNav({
               Skemaer
             </Link>
 
-            {user?.role === "ADMIN" ? (
+            {user?.isAdmin ? (
               <Link className="hover:underline" href="/admin">
                 Admin
               </Link>
             ) : null}
 
-            {user?.role === "LEADER" ? (
+            {user?.teamRole === "LEADER" ? (
               <Link className="hover:underline" href="/leder">
-                Godkend
+                Leder
               </Link>
             ) : null}
           </nav>
@@ -81,15 +82,15 @@ export default function TopNav({
                   Skemaer
                 </Link>
 
-                {user?.role === "ADMIN" ? (
+                {user?.isAdmin ? (
                   <Link className="rounded px-2 py-1 hover:bg-zinc-50" href="/admin">
                     Admin
                   </Link>
                 ) : null}
 
-                {user?.role === "LEADER" ? (
+                {user?.teamRole === "LEADER" ? (
                   <Link className="rounded px-2 py-1 hover:bg-zinc-50" href="/leder">
-                    Godkend
+                    Leder
                   </Link>
                 ) : null}
 

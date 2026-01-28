@@ -6,6 +6,7 @@ import { useStatsFilters } from "@/components/stats/StatsFiltersProvider";
 
 type StatsEvent = {
   perspective?: string | null;
+  teamName?: string | null;
   gameId: string | null;
   gameDate?: string | null;
   teamHome?: string | null;
@@ -63,7 +64,8 @@ export default function StatsSidebarSlicers() {
     >();
 
     for (const e of events) {
-      if (e.perspective) perspectives.add(e.perspective);
+      if (e.teamName) perspectives.add(e.teamName);
+      else if (e.perspective) perspectives.add(e.perspective);
 
       if (e.p1Name) players.add(e.p1Name);
       if (e.p2Name) players.add(e.p2Name);
@@ -136,8 +138,6 @@ export default function StatsSidebarSlicers() {
 
   return (
     <div className="mt-6 space-y-3">
-      <div className="text-sm font-semibold">Slicers</div>
-
       <label className="block text-sm">
         <div className="mb-1 font-medium">Perspektiv</div>
         <select

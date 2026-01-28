@@ -54,9 +54,7 @@ export async function getCurrentUser() {
     activeTeamId = activeMembership?.teamId ?? null;
   }
 
-  const activeRole = isAdmin
-    ? ("ADMIN" as const)
-    : (activeMembership?.role ?? null);
+  const activeRole = activeMembership?.role ?? null;
 
   return {
     ...user,
@@ -95,6 +93,16 @@ export async function requireLeader() {
     throw new Error("NOT_AUTHORIZED");
   }
   if (!user.activeTeamId) throw new Error("NO_TEAM");
+  return user;
+}
+
+export async function requireLeaderOrAdmin() {
+  const user = await requireApprovedUser();
+  if (!user.activeTeamId) throw new Error("NO_TEAM");
+  if (user.isAdmin) return user;
+  if (user.activeMembership?.role !== TeamRole.LEADER) {
+    throw new Error("NOT_AUTHORIZED");
+  }
   return user;
 }
 

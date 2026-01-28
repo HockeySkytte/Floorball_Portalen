@@ -8,7 +8,7 @@ import StatsSidebarSlicers from "@/components/stats/StatsSidebarSlicers";
 
 export type MobileAppHeaderUser = {
   username: string;
-  role: string;
+  teamRole: string | null;
 };
 
 export default function MobileAppHeader({
@@ -101,14 +101,14 @@ export default function MobileAppHeader({
                 <Link className="block px-4 py-4 text-lg font-semibold" href="/skemaer">
                   Skemaer
                 </Link>
-                {user.role === "ADMIN" ? (
+                {isAdmin ? (
                   <Link className="block px-4 py-4 text-lg font-semibold" href="/admin">
                     Admin
                   </Link>
                 ) : null}
-                {user.role === "LEADER" ? (
+                {user.teamRole === "LEADER" ? (
                   <Link className="block px-4 py-4 text-lg font-semibold" href="/leder">
-                    Godkend
+                    Leder
                   </Link>
                 ) : null}
 

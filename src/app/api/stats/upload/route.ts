@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { requireLeader } from "@/lib/auth";
+import { requireLeaderOrAdmin } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { parseCsv, toDate, toFloat, toInt } from "@/lib/csv";
 
@@ -30,8 +30,8 @@ function chunk<T>(arr: T[], size: number) {
 }
 
 export async function POST(req: Request) {
-  const leader = await requireLeader();
-  const teamId = leader.activeTeamId;
+  const actor = await requireLeaderOrAdmin();
+  const teamId = actor.activeTeamId;
   if (!teamId) {
     return NextResponse.json({ message: "Ingen valgt hold." }, { status: 400 });
   }
@@ -73,7 +73,7 @@ export async function POST(req: Request) {
   const statsFile = await prismaAny.statsFile.create({
     data: {
       teamId,
-      uploadedById: leader.id,
+      uploadedById: actor.id,
       kind,
       originalName: file.name,
       content,

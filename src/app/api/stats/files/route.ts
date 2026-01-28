@@ -1,12 +1,12 @@
 import { NextResponse } from "next/server";
-import { requireLeader } from "@/lib/auth";
+import { requireLeaderOrAdmin } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 
 type UploadKind = "EVENTS" | "PLAYERS";
 
 export async function GET(req: Request) {
-  const leader = await requireLeader();
-  const teamId = leader.activeTeamId;
+  const actor = await requireLeaderOrAdmin();
+  const teamId = actor.activeTeamId;
   if (!teamId) {
     return NextResponse.json({ message: "Ingen valgt hold." }, { status: 400 });
   }

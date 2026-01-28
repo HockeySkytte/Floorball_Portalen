@@ -58,11 +58,11 @@ export default async function AppLayout({
         {/* Right side: topbar starts AFTER sidebar */}
         <div className="flex min-h-dvh flex-col">
           <div className="hidden md:block">
-            <TopNav user={{ username: user.username, role: user.activeRole ?? "USER" }} />
+            <TopNav user={{ username: user.username, isAdmin, teamRole: user.activeRole }} />
           </div>
 
           <MobileAppHeader
-            user={{ username: user.username, role: user.activeRole ?? "USER" }}
+            user={{ username: user.username, teamRole: user.activeRole }}
             isAdmin={isAdmin}
             teams={teams}
             selectedTeamId={resolvedSelectedTeamId}

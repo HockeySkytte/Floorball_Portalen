@@ -200,7 +200,7 @@ export default function StatistikClient({ isLeader }: { isLeader: boolean }) {
     if (!pSel) return [];
 
     return events.filter((e) => {
-      if (norm(e.perspective) !== pSel) return false;
+      if (norm(e.teamName ?? e.perspective) !== pSel) return false;
 
       if (gameSel && norm(e.gameId) !== gameSel) return false;
 
@@ -411,18 +411,18 @@ export default function StatistikClient({ isLeader }: { isLeader: boolean }) {
             {filteredEvents.length === 0 ? (
               <p className="mt-4 text-sm text-zinc-600">Ingen events.</p>
             ) : (
-              <div className="mt-4 overflow-x-auto">
+              <div className="mt-4 max-h-[60vh] overflow-auto">
                 <table className="min-w-[900px] w-full border-collapse text-sm">
-                  <thead>
+                  <thead className="sticky top-0 z-10 bg-[color:var(--surface)]">
                     <tr className="border-b border-[color:var(--surface-border)] text-left">
-                      <th className="py-2 pr-3">Tid</th>
-                      <th className="py-2 pr-3">Periode</th>
-                      <th className="py-2 pr-3">Event</th>
-                      <th className="py-2 pr-3">P1</th>
-                      <th className="py-2 pr-3">P2</th>
-                      <th className="py-2 pr-3">X</th>
-                      <th className="py-2 pr-3">Y</th>
-                      <th className="py-2 pr-3">Fil</th>
+                      <th className="bg-[color:var(--surface)] py-2 pr-3">Tid</th>
+                      <th className="bg-[color:var(--surface)] py-2 pr-3">Periode</th>
+                      <th className="bg-[color:var(--surface)] py-2 pr-3">Event</th>
+                      <th className="bg-[color:var(--surface)] py-2 pr-3">P1</th>
+                      <th className="bg-[color:var(--surface)] py-2 pr-3">P2</th>
+                      <th className="bg-[color:var(--surface)] py-2 pr-3">X</th>
+                      <th className="bg-[color:var(--surface)] py-2 pr-3">Y</th>
+                      <th className="bg-[color:var(--surface)] py-2 pr-3">Fil</th>
                     </tr>
                   </thead>
                   <tbody>
