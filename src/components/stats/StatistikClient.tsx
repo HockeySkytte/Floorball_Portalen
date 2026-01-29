@@ -683,7 +683,7 @@ function VideoSection({
         </div>
       </div>
 
-      <div className="grid gap-4 md:grid-cols-[minmax(0,1fr)_minmax(0,1fr)] md:items-start">
+      <div className="grid gap-4 md:grid-cols-[minmax(0,2fr)_minmax(0,1fr)] md:items-start">
         <div className="space-y-2">
           <div className="aspect-video w-full overflow-hidden rounded-md bg-black/90">
             {selectedRow?.playable ? (
@@ -699,7 +699,7 @@ function VideoSection({
           ) : null}
         </div>
 
-        <div className="max-h-[320px] overflow-auto rounded-md border border-[color:var(--surface-border)]">
+        <div className="max-h-[320px] overflow-auto rounded-md border border-[color:var(--surface-border)] md:max-w-[420px] md:justify-self-end">
           <table className="w-full border-collapse text-sm">
             <thead className="sticky top-0 z-10 bg-[color:var(--surface)]">
               <tr className="border-b border-[color:var(--surface-border)] text-left">
@@ -743,6 +743,145 @@ function VideoSection({
           </table>
         </div>
       </div>
+    </div>
+  );
+}
+
+type SortDir = "asc" | "desc";
+type TableColumn<T> = {
+  key: string;
+  label: string;
+  align?: "left" | "center";
+  getValue: (row: T) => string | number | null | undefined;
+  format?: (row: T, index: number) => React.ReactNode;
+  style?: (row: T, index: number) => React.CSSProperties | undefined;
+};
+
+function compareValues(a: string | number | null | undefined, b: string | number | null | undefined) {
+  const aNull = a === null || a === undefined || a === "";
+  const bNull = b === null || b === undefined || b === "";
+  if (aNull && bNull) return 0;
+  if (aNull) return 1;
+  if (bNull) return -1;
+
+  if (typeof a === "number" && typeof b === "number") return a - b;
+  return String(a).localeCompare(String(b), "da-DK", { numeric: true, sensitivity: "base" });
+}
+
+function SortableTable<T>({
+  rows,
+  columns,
+  getRowKey,
+  defaultSortKey,
+  defaultSortDir,
+  minWidthClass,
+}: {
+  rows: T[];
+  columns: Array<TableColumn<T>>;
+  getRowKey: (row: T) => string;
+  defaultSortKey: string;
+  defaultSortDir: SortDir;
+  minWidthClass?: string;
+}) {
+  const [sortKey, setSortKey] = useState<string>(defaultSortKey);
+  const [sortDir, setSortDir] = useState<SortDir>(defaultSortDir);
+
+  const sorted = useMemo(() => {
+    const col = columns.find((c) => c.key === sortKey) ?? columns[0];
+    const dirMul = sortDir === "asc" ? 1 : -1;
+    const out = [...rows];
+    out.sort((ra, rb) => dirMul * compareValues(col?.getValue(ra), col?.getValue(rb)));
+    return out;
+  }, [rows, columns, sortKey, sortDir]);
+
+  return (
+    <div className="overflow-auto">
+      <table className={(minWidthClass ?? "") + " w-full border-collapse text-sm"}>
+        <thead className="sticky top-0 z-10 bg-[color:var(--surface)]">
+          <tr className="border-b border-[color:var(--surface-border)]">
+            {columns.map((c) => {
+              const align = c.align ?? "center";
+              const isActive = sortKey === c.key;
+              const arrow = isActive ? (sortDir === "asc" ? "▲" : "▼") : "";
+              return (
+                <th
+                  key={c.key}
+                  className={
+                    "px-2 py-2 font-semibold " +
+                    (align === "left" ? "text-left" : "text-center")
+                  }
+                >
+                  <button
+                    type="button"
+                    className="inline-flex items-center gap-1"
+                    onClick={() => {
+                      if (c.key === "__rank") {
+                        setSortKey(defaultSortKey);
+                        setSortDir(defaultSortDir);
+                        return;
+                      }
+                      if (sortKey === c.key) {
+                        setSortDir((d) => (d === "asc" ? "desc" : "asc"));
+                      } else {
+                        setSortKey(c.key);
+                        setSortDir(defaultSortDir);
+                      }
+                    }}
+                  >
+                    <span>{c.label}</span>
+                    <span className="text-xs text-zinc-500">{arrow}</span>
+                  </button>
+                </th>
+              );
+            })}
+          </tr>
+        </thead>
+        <tbody>
+          {sorted.map((r, index) => (
+            <tr key={getRowKey(r)} className="border-b border-[color:var(--surface-border)]">
+              {columns.map((c) => {
+                const align = c.align ?? "center";
+                if (c.key === "__rank") {
+                  return (
+                    <td
+                      key={c.key}
+                      className={
+                        "px-2 py-1.5 tabular-nums " +
+                        (align === "left" ? "text-left" : "text-center")
+                      }
+                    >
+                      {index + 1}
+                    </td>
+                  );
+                }
+
+                const v = c.getValue(r);
+                const isNum = typeof v === "number";
+                return (
+                  <td
+                    key={c.key}
+                    className={
+                      "px-2 py-1.5 " +
+                      (isNum ? "tabular-nums " : "") +
+                      (align === "left" ? "text-left" : "text-center")
+                    }
+                    style={c.style ? c.style(r, index) : undefined}
+                  >
+                    {c.format ? c.format(r, index) : String(v ?? "")}
+                  </td>
+                );
+              })}
+            </tr>
+          ))}
+          {sorted.length === 0 ? (
+            <tr>
+              <td className="px-2 py-3 text-sm text-zinc-600" colSpan={columns.length}>
+                Ingen data.
+              </td>
+            </tr>
+          ) : null}
+        </tbody>
+      </table>
     </div>
   );
 }
@@ -1198,14 +1337,26 @@ export default function StatistikClient({ isLeader }: { isLeader: boolean }) {
     return String(value ?? "").trim().toLowerCase();
   }
 
+  function makePlayerKey(team: string, name: string) {
+    return `${String(team ?? "").trim()}||${String(name ?? "").trim()}`;
+  }
+
+  function otherTeamInGame(eventTeam: string, homeTeam: string, awayTeam: string) {
+    const t = String(eventTeam ?? "").trim();
+    const h = String(homeTeam ?? "").trim();
+    const a = String(awayTeam ?? "").trim();
+    if (!t || !h || !a) return null;
+    if (t === h) return a;
+    if (t === a) return h;
+    return null;
+  }
+
   function splitOnIce(value: string | null | undefined) {
     return String(value ?? "")
       .split(" - ")
       .map((s) => s.trim())
       .filter(Boolean);
   }
-
-  const selectedTeam = String(filters.perspektiv ?? "").trim();
 
   const selectedShotEventIdSet = useMemo(() => new Set(selectedShotEventIds), [selectedShotEventIds]);
 
@@ -1263,130 +1414,150 @@ export default function StatistikClient({ isLeader }: { isLeader: boolean }) {
     return map;
   }, [events]);
 
-  const playerMetaByName = useMemo(() => {
-    const map = new Map<string, { number: number | null; line: string | null }>();
+  const playerMetaByKey = useMemo(() => {
+    const map = new Map<string, { number: number | null }>();
     for (const p of players) {
-      const n = String(p.name ?? "").trim();
-      if (!n) continue;
-      if (!map.has(n)) map.set(n, { number: p.number ?? null, line: p.line ?? null });
+      const name = String(p.name ?? "").trim();
+      const team = String(p.teamName ?? "").trim();
+      if (!name || !team) continue;
+      const key = makePlayerKey(team, name);
+      if (!map.has(key)) map.set(key, { number: p.number ?? null });
     }
     return map;
   }, [players]);
 
-  const gpByName = useMemo(() => {
-    // GP = unique games per player from Players CSV data.
-    const byName = new Map<string, Set<string>>();
+  const gpByPlayerKey = useMemo(() => {
+    // GP = unique games per player+team from Players CSV data.
+    const byKey = new Map<string, Set<string>>();
     for (const p of players) {
       const name = String(p.name ?? "").trim();
-      if (!name) continue;
-      if (selectedTeam && String(p.teamName ?? "").trim() !== selectedTeam) continue;
+      const team = String(p.teamName ?? "").trim();
+      if (!name || !team) continue;
       const gid = String(p.gameId ?? "").trim();
       if (!gid) continue;
-      if (!byName.has(name)) byName.set(name, new Set());
-      byName.get(name)!.add(gid);
+      const key = makePlayerKey(team, name);
+      if (!byKey.has(key)) byKey.set(key, new Set());
+      byKey.get(key)!.add(gid);
     }
     const out = new Map<string, number>();
-    for (const [name, set] of byName.entries()) out.set(name, set.size);
+    for (const [key, set] of byKey.entries()) out.set(key, set.size);
     return out;
-  }, [players, selectedTeam]);
-
-  const selectedTeamPlayerNames = useMemo(() => {
-    const names = new Set<string>();
-    for (const p of players) {
-      if (selectedTeam && String(p.teamName ?? "").trim() !== selectedTeam) continue;
-      const name = String(p.name ?? "").trim();
-      if (name) names.add(name);
-    }
-    return names;
-  }, [players, selectedTeam]);
+  }, [players]);
 
   const playerIndividualRows = useMemo(() => {
-    if (!selectedTeam) return [];
-
-    const byName = new Map<
+    const byKey = new Map<
       string,
       {
         name: string;
-        number: number | null;
-        line: string | null;
+        team: string;
         gp: number;
         g: number;
         a: number;
-        sog: number;
+        penMinus: number;
+        penPlus: number;
+        shots: number;
         miss: number;
+        shotInBlock: number;
         blocks: number;
         attempts: number;
       }
     >();
 
-    const ensure = (name: string) => {
-      const meta = playerMetaByName.get(name) ?? { number: null, line: null };
-      if (!byName.has(name)) {
-        byName.set(name, {
-          name,
-          number: meta.number,
-          line: meta.line,
-          gp: gpByName.get(name) ?? 0,
+    const ensure = (team: string, name: string) => {
+      const t = String(team ?? "").trim();
+      const n = String(name ?? "").trim();
+      if (!t || !n) return null;
+      const key = makePlayerKey(t, n);
+      if (!byKey.has(key)) {
+        byKey.set(key, {
+          name: n,
+          team: t,
+          gp: gpByPlayerKey.get(key) ?? 0,
           g: 0,
           a: 0,
-          sog: 0,
+          penMinus: 0,
+          penPlus: 0,
+          shots: 0,
           miss: 0,
+          shotInBlock: 0,
           blocks: 0,
           attempts: 0,
         });
       }
-      return byName.get(name)!;
+      return byKey.get(key)!;
     };
 
     for (const e of tableEvents) {
       const kind = classifyShotKind(e.event);
-      if (kind === "PENALTY") continue;
+      const eventTeam = String(e.teamName ?? "").trim();
+      const home = String(e.teamHome ?? "").trim();
+      const away = String(e.teamAway ?? "").trim();
 
-      const forTeam = String(e.teamName ?? "").trim() === selectedTeam;
-      // Individual offensive stats tracked for the selected team.
-      if (!forTeam) {
-        // Blocks are counted as BLOCK events where the player is P2.
-        if (kind === "BLOCK") {
-          const blocker = String(e.p2Name ?? "").trim();
-          if (blocker && selectedTeamPlayerNames.has(blocker)) {
-            const row = ensure(blocker);
-            row.blocks += 1;
-          }
+      if (kind === "PENALTY") {
+        const takenBy = String(e.p1Name ?? "").trim();
+        if (eventTeam && takenBy) {
+          const row = ensure(eventTeam, takenBy);
+          if (row) row.penMinus += 1;
+        }
+
+        const drawnBy = String(e.p2Name ?? "").trim();
+        const drawnTeam = eventTeam ? otherTeamInGame(eventTeam, home, away) : null;
+        if (drawnTeam && drawnBy) {
+          const row = ensure(drawnTeam, drawnBy);
+          if (row) row.penPlus += 1;
         }
         continue;
       }
+
+      if (!eventTeam) continue;
 
       const shooter = String(e.p1Name ?? "").trim();
       const assist = String(e.p2Name ?? "").trim();
 
       if (shooter) {
-        const row = ensure(shooter);
-        row.attempts += 1;
-        if (kind === "GOAL") row.g += 1;
-        if (kind === "GOAL" || kind === "SHOT") row.sog += 1;
-        if (kind === "MISS") row.miss += 1;
+        const row = ensure(eventTeam, shooter);
+        if (row) {
+          row.attempts += 1;
+          if (kind === "GOAL") row.g += 1;
+          if (kind === "GOAL" || kind === "SHOT") row.shots += 1;
+          if (kind === "MISS") row.miss += 1;
+          if (kind === "BLOCK") row.shotInBlock += 1;
+        }
       }
 
       if (kind === "GOAL" && assist && assist !== shooter) {
-        const row = ensure(assist);
-        row.a += 1;
+        const row = ensure(eventTeam, assist);
+        if (row) row.a += 1;
+      }
+
+      if (kind === "BLOCK") {
+        const blocker = String(e.p2Name ?? "").trim();
+        const blockTeam = otherTeamInGame(eventTeam, home, away);
+        if (blockTeam && blocker) {
+          const row = ensure(blockTeam, blocker);
+          if (row) row.blocks += 1;
+        }
       }
     }
 
-    const rows = Array.from(byName.values()).map((r) => ({ ...r, p: r.g + r.a }));
-    rows.sort((a, b) => (b.p - a.p) || (b.attempts - a.attempts) || a.name.localeCompare(b.name, "da-DK"));
+    const rows = Array.from(byKey.values()).map((r) => {
+      const p = r.g + r.a;
+      const shPct = r.shots > 0 ? (r.g / r.shots) * 100 : 0;
+      return { ...r, p, shPct };
+    });
+
+    rows.sort(
+      (a, b) => (b.p - a.p) || (b.g - a.g) || (b.shots - a.shots) || a.name.localeCompare(b.name, "da-DK")
+    );
     return rows;
-  }, [selectedTeam, gpByName, playerMetaByName, selectedTeamPlayerNames, tableEvents]);
+  }, [gpByPlayerKey, tableEvents]);
 
   const playerOnIceRows = useMemo(() => {
-    if (!selectedTeam) return [];
-
-    const byName = new Map<
+    const byKey = new Map<
       string,
       {
         name: string;
-        number: number | null;
-        line: string | null;
+        team: string;
         gp: number;
         cf: number;
         ca: number;
@@ -1399,14 +1570,16 @@ export default function StatistikClient({ isLeader }: { isLeader: boolean }) {
       }
     >();
 
-    const ensure = (name: string) => {
-      const meta = playerMetaByName.get(name) ?? { number: null, line: null };
-      if (!byName.has(name)) {
-        byName.set(name, {
-          name,
-          number: meta.number,
-          line: meta.line,
-          gp: gpByName.get(name) ?? 0,
+    const ensure = (team: string, name: string) => {
+      const t = String(team ?? "").trim();
+      const n = String(name ?? "").trim();
+      if (!t || !n) return null;
+      const key = makePlayerKey(t, n);
+      if (!byKey.has(key)) {
+        byKey.set(key, {
+          name: n,
+          team: t,
+          gp: gpByPlayerKey.get(key) ?? 0,
           cf: 0,
           ca: 0,
           ff: 0,
@@ -1417,49 +1590,44 @@ export default function StatistikClient({ isLeader }: { isLeader: boolean }) {
           ga: 0,
         });
       }
-      return byName.get(name)!;
+      return byKey.get(key)!;
     };
-
-    const normSel = norm(selectedTeam);
 
     for (const e of tableEvents) {
       const kind = classifyShotKind(e.event);
       if (kind === "PENALTY") continue;
 
-      const forTeam = String(e.teamName ?? "").trim() === selectedTeam;
+      const eventTeam = String(e.teamName ?? "").trim();
+      const home = String(e.teamHome ?? "").trim();
+      const away = String(e.teamAway ?? "").trim();
+      if (!eventTeam || !home || !away) continue;
+
       const isCorsi = kind === "GOAL" || kind === "SHOT" || kind === "MISS" || kind === "BLOCK";
       const isFenwick = kind === "GOAL" || kind === "SHOT" || kind === "MISS";
       const isShotOnGoal = kind === "GOAL" || kind === "SHOT";
       const isGoal = kind === "GOAL";
 
-      const home = String(e.teamHome ?? "").trim();
-      const away = String(e.teamAway ?? "").trim();
-      let onIceList: string[] = [];
-      if (norm(home) === normSel) onIceList = splitOnIce(e.homePlayersNames);
-      else if (norm(away) === normSel) onIceList = splitOnIce(e.awayPlayersNames);
+      const homeList = splitOnIce(e.homePlayersNames);
+      const awayList = splitOnIce(e.awayPlayersNames);
 
-      if (onIceList.length === 0) continue;
+      for (const name of homeList) {
+        const row = ensure(home, name);
+        if (!row) continue;
+        const forTeam = eventTeam === home;
+        if (isCorsi) forTeam ? (row.cf += 1) : (row.ca += 1);
+        if (isFenwick) forTeam ? (row.ff += 1) : (row.fa += 1);
+        if (isShotOnGoal) forTeam ? (row.sf += 1) : (row.sa += 1);
+        if (isGoal) forTeam ? (row.gf += 1) : (row.ga += 1);
+      }
 
-      for (const name of onIceList) {
-        const nm = String(name ?? "").trim();
-        if (!nm) continue;
-        const row = ensure(nm);
-        if (isCorsi) {
-          if (forTeam) row.cf += 1;
-          else row.ca += 1;
-        }
-        if (isFenwick) {
-          if (forTeam) row.ff += 1;
-          else row.fa += 1;
-        }
-        if (isShotOnGoal) {
-          if (forTeam) row.sf += 1;
-          else row.sa += 1;
-        }
-        if (isGoal) {
-          if (forTeam) row.gf += 1;
-          else row.ga += 1;
-        }
+      for (const name of awayList) {
+        const row = ensure(away, name);
+        if (!row) continue;
+        const forTeam = eventTeam === away;
+        if (isCorsi) forTeam ? (row.cf += 1) : (row.ca += 1);
+        if (isFenwick) forTeam ? (row.ff += 1) : (row.fa += 1);
+        if (isShotOnGoal) forTeam ? (row.sf += 1) : (row.sa += 1);
+        if (isGoal) forTeam ? (row.gf += 1) : (row.ga += 1);
       }
     }
 
@@ -1468,7 +1636,7 @@ export default function StatistikClient({ isLeader }: { isLeader: boolean }) {
       return den > 0 ? (f / den) * 100 : 0;
     };
 
-    const rows = Array.from(byName.values()).map((r) => {
+    const rows = Array.from(byKey.values()).map((r) => {
       const cfPct = pctShare(r.cf, r.ca);
       const ffPct = pctShare(r.ff, r.fa);
       const sfPct = pctShare(r.sf, r.sa);
@@ -1481,14 +1649,25 @@ export default function StatistikClient({ isLeader }: { isLeader: boolean }) {
       return { ...r, cfPct, ffPct, sfPct, gfPct, svPct, shPct, pdo };
     });
 
-    rows.sort((a, b) => (b.cfPct - a.cfPct) || (b.cf - a.cf) || a.name.localeCompare(b.name, "da-DK"));
+    rows.sort(
+      (a, b) => (b.cfPct - a.cfPct) || (b.cf - a.cf) || a.name.localeCompare(b.name, "da-DK")
+    );
     return rows;
-  }, [selectedTeam, gpByName, playerMetaByName, tableEvents]);
+  }, [gpByPlayerKey, tableEvents]);
 
   const goalieRows = useMemo(() => {
-    if (!selectedTeam) return [];
-    const byName = new Map<string, { name: string; games: number; sa: number; ga: number }>();
-    const gamesByGoalie = new Map<string, Set<string>>();
+    const byKey = new Map<string, { name: string; team: string; sa: number; ga: number }>();
+    const gamesByKey = new Map<string, Set<string>>();
+
+    const ensure = (team: string, name: string) => {
+      const t = String(team ?? "").trim();
+      const n = String(name ?? "").trim();
+      if (!t || !n) return null;
+      const key = makePlayerKey(t, n);
+      if (!byKey.has(key)) byKey.set(key, { name: n, team: t, sa: 0, ga: 0 });
+      if (!gamesByKey.has(key)) gamesByKey.set(key, new Set());
+      return { key, row: byKey.get(key)! };
+    };
 
     for (const e of tableEvents) {
       const goalie = String(e.goalieName ?? "").trim();
@@ -1497,67 +1676,126 @@ export default function StatistikClient({ isLeader }: { isLeader: boolean }) {
       const kind = classifyShotKind(e.event);
       if (kind === "PENALTY") continue;
 
-      const against = String(e.teamName ?? "").trim() !== selectedTeam;
-      if (!against) continue;
+      const eventTeam = String(e.teamName ?? "").trim();
+      const home = String(e.teamHome ?? "").trim();
+      const away = String(e.teamAway ?? "").trim();
+      const goalieTeam = eventTeam ? otherTeamInGame(eventTeam, home, away) : null;
+      if (!goalieTeam) continue;
 
       const isShotOnGoal = kind === "GOAL" || kind === "SHOT";
       const isGoal = kind === "GOAL";
+      if (!isShotOnGoal && !isGoal) continue;
 
-      if (!byName.has(goalie)) byName.set(goalie, { name: goalie, games: 0, sa: 0, ga: 0 });
-      const row = byName.get(goalie)!;
+      const ensured = ensure(goalieTeam, goalie);
+      if (!ensured) continue;
 
-      if (isShotOnGoal) row.sa += 1;
-      if (isGoal) row.ga += 1;
+      if (isShotOnGoal) ensured.row.sa += 1;
+      if (isGoal) ensured.row.ga += 1;
 
-      if (e.gameId) {
-        if (!gamesByGoalie.has(goalie)) gamesByGoalie.set(goalie, new Set());
-        gamesByGoalie.get(goalie)!.add(e.gameId);
+      if (e.gameId) gamesByKey.get(ensured.key)!.add(e.gameId);
+    }
+
+    const rows = Array.from(byKey.entries()).map(([key, r]) => {
+      const svPct = r.sa > 0 ? ((r.sa - r.ga) / r.sa) * 100 : 0;
+      const games = gamesByKey.get(key)?.size ?? 0;
+      return { ...r, games, svPct };
+    });
+
+    rows.sort(
+      (a, b) => (b.svPct - a.svPct) || (b.sa - a.sa) || a.name.localeCompare(b.name, "da-DK")
+    );
+    return rows;
+  }, [tableEvents]);
+
+  const teamRows = useMemo(() => {
+    const byTeam = new Map<
+      string,
+      {
+        team: string;
+        cf: number;
+        ca: number;
+        ff: number;
+        fa: number;
+        sf: number;
+        sa: number;
+        gf: number;
+        ga: number;
+      }
+    >();
+
+    const ensure = (team: string) => {
+      const t = String(team ?? "").trim();
+      if (!t) return null;
+      if (!byTeam.has(t)) {
+        byTeam.set(t, { team: t, cf: 0, ca: 0, ff: 0, fa: 0, sf: 0, sa: 0, gf: 0, ga: 0 });
+      }
+      return byTeam.get(t)!;
+    };
+
+    // Ensure all teams from games appear even if one team has 0 events after filtering.
+    for (const e of tableEvents) {
+      const home = String(e.teamHome ?? "").trim();
+      const away = String(e.teamAway ?? "").trim();
+      if (home) ensure(home);
+      if (away) ensure(away);
+    }
+
+    for (const e of tableEvents) {
+      const kind = classifyShotKind(e.event);
+      if (kind === "PENALTY") continue;
+
+      const eventTeam = String(e.teamName ?? "").trim();
+      const home = String(e.teamHome ?? "").trim();
+      const away = String(e.teamAway ?? "").trim();
+      const oppTeam = eventTeam ? otherTeamInGame(eventTeam, home, away) : null;
+      if (!eventTeam || !oppTeam) continue;
+
+      const teamRow = ensure(eventTeam);
+      const oppRow = ensure(oppTeam);
+      if (!teamRow || !oppRow) continue;
+
+      const isCorsi = kind === "GOAL" || kind === "SHOT" || kind === "MISS" || kind === "BLOCK";
+      const isFenwick = kind === "GOAL" || kind === "SHOT" || kind === "MISS";
+      const isShotOnGoal = kind === "GOAL" || kind === "SHOT";
+      const isGoal = kind === "GOAL";
+
+      if (isCorsi) {
+        teamRow.cf += 1;
+        oppRow.ca += 1;
+      }
+      if (isFenwick) {
+        teamRow.ff += 1;
+        oppRow.fa += 1;
+      }
+      if (isShotOnGoal) {
+        teamRow.sf += 1;
+        oppRow.sa += 1;
+      }
+      if (isGoal) {
+        teamRow.gf += 1;
+        oppRow.ga += 1;
       }
     }
 
-    const rows = Array.from(byName.values()).map((r) => {
+    const pctShare = (f: number, a: number) => {
+      const den = f + a;
+      return den > 0 ? (f / den) * 100 : 0;
+    };
+
+    const rows = Array.from(byTeam.values()).map((r) => {
+      const cfPct = pctShare(r.cf, r.ca);
+      const ffPct = pctShare(r.ff, r.fa);
+      const sfPct = pctShare(r.sf, r.sa);
+      const gfPct = pctShare(r.gf, r.ga);
+      const shPct = r.sf > 0 ? (r.gf / r.sf) * 100 : 0;
       const svPct = r.sa > 0 ? ((r.sa - r.ga) / r.sa) * 100 : 0;
-      const games = gamesByGoalie.get(r.name)?.size ?? 0;
-      return { ...r, games, svPct };
-    });
-    rows.sort((a, b) => (b.svPct - a.svPct) || (b.sa - a.sa) || a.name.localeCompare(b.name, "da-DK"));
-    return rows;
-  }, [selectedTeam, tableEvents]);
-
-  const teamByGameRows = useMemo(() => {
-    if (!selectedTeam) return [];
-
-    const byGame = new Map<string, StatsEvent[]>();
-    for (const e of tableEvents) {
-      const gid = e.gameId ?? "(ukendt kamp)";
-      if (!byGame.has(gid)) byGame.set(gid, []);
-      byGame.get(gid)!.push(e);
-    }
-
-    const rows = Array.from(byGame.entries()).map(([gameId, list]) => {
-      const k = computeShotMapKpis(list, selectedTeam);
-      return {
-        gameId,
-        label: gameId === "(ukendt kamp)" ? "(ukendt kamp)" : (gameLabelById.get(gameId) ?? gameId),
-        cf: k.corsi.cf,
-        ca: k.corsi.ca,
-        cfPct: k.corsi.cfPct,
-        ff: k.fenwick.ff,
-        fa: k.fenwick.fa,
-        ffPct: k.fenwick.ffPct,
-        sf: k.shots.sf,
-        sa: k.shots.sa,
-        sfPct: k.shots.sfPct,
-        gf: k.goals.gf,
-        ga: k.goals.ga,
-        gfPct: k.goals.gfPct,
-        pdo: k.sg.pdo,
-      };
+      const pdo = shPct + svPct;
+      return { ...r, cfPct, ffPct, sfPct, gfPct, shPct, svPct, pdo };
     });
 
-    rows.sort((a, b) => a.label.localeCompare(b.label, "da-DK"));
+    rows.sort((a, b) => a.team.localeCompare(b.team, "da-DK"));
     return rows;
-  }, [selectedTeam, tableEvents, gameLabelById]);
+  }, [tableEvents]);
 
   const filteredEvents = useMemo(() => {
     const pSel = norm(filters.perspektiv);
@@ -2110,27 +2348,39 @@ export default function StatistikClient({ isLeader }: { isLeader: boolean }) {
             </div>
           )}
 
-          <div className="mt-3 flex flex-wrap items-center justify-center gap-4 text-sm text-zinc-700">
-            <div className="flex items-center gap-2">
+          <div className="mt-3 flex flex-wrap items-center gap-3 text-sm text-zinc-700">
+            <div className="flex flex-1 flex-wrap items-center justify-center gap-4">
+              <div className="flex items-center gap-2">
               <span className="inline-block h-3 w-3 rounded-full border-2 border-[color:var(--surface-foreground)]" />
               <span>Shot</span>
             </div>
-            <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2">
               <span className="inline-block h-0 w-0 border-l-[7px] border-r-[7px] border-b-[12px] border-l-transparent border-r-transparent border-b-[color:var(--surface-foreground)]" />
               <span>Miss</span>
             </div>
-            <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2">
               <span className="inline-block h-3 w-3 border-2 border-[color:var(--surface-foreground)]" />
               <span>Block</span>
             </div>
-            <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2">
               <span className="inline-block h-3 w-3 rotate-45 border-2 border-[color:var(--surface-foreground)]" />
               <span>Penalty</span>
             </div>
-            <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2">
               <span className="text-base text-[color:var(--surface-foreground)]">★</span>
               <span>Goal</span>
             </div>
+            </div>
+
+            {selectedShotEventIds.length > 0 ? (
+              <button
+                type="button"
+                onClick={() => setSelectedShotEventIds([])}
+                className="rounded-md border border-[color:var(--surface-border)] px-3 py-1.5 text-sm"
+              >
+                Fravælg alle
+              </button>
+            ) : null}
           </div>
 
           <VideoSection title="Video" events={shotMapSelectedEvents} />
@@ -2240,275 +2490,202 @@ export default function StatistikClient({ isLeader }: { isLeader: boolean }) {
           <div className="rounded-md border border-[color:var(--surface-border)] p-4">
             <h2 className="text-lg font-semibold">Tabeller</h2>
 
-            {selectedTeam.length === 0 ? (
-              <p className="mt-2 text-sm text-zinc-600">Vælg et Perspektiv.</p>
-            ) : (
-              <>
-                <nav className="mt-4 flex flex-wrap gap-2">
-                  {(
-                    [
-                      { key: "players-individual" as const, label: "Spillere - Individuel" },
-                      { key: "players-onice" as const, label: "Spillere - På Banen" },
-                      { key: "goalies" as const, label: "Målmænd" },
-                      { key: "team" as const, label: "Hold" },
-                    ]
-                  ).map((t) => (
-                    <button
-                      key={t.key}
-                      type="button"
-                      onClick={() => setTablesTab(t.key)}
-                      className={
-                        tablesTab === t.key
-                          ? "rounded-md bg-[var(--brand)] px-3 py-1.5 text-sm font-medium text-[var(--brand-foreground)]"
-                          : "rounded-md border border-[color:var(--surface-border)] bg-transparent px-3 py-1.5 text-sm"
-                      }
-                    >
-                      {t.label}
-                    </button>
-                  ))}
-                </nav>
+            <nav className="mt-4 flex flex-wrap gap-2">
+              {(
+                [
+                  { key: "players-individual" as const, label: "Spillere - Individuel" },
+                  { key: "players-onice" as const, label: "Spillere - På Banen" },
+                  { key: "goalies" as const, label: "Målmænd" },
+                  { key: "team" as const, label: "Hold" },
+                ]
+              ).map((t) => (
+                <button
+                  key={t.key}
+                  type="button"
+                  onClick={() => setTablesTab(t.key)}
+                  className={
+                    tablesTab === t.key
+                      ? "rounded-md bg-[var(--brand)] px-3 py-1.5 text-sm font-medium text-[var(--brand-foreground)]"
+                      : "rounded-md border border-[color:var(--surface-border)] bg-transparent px-3 py-1.5 text-sm"
+                  }
+                >
+                  {t.label}
+                </button>
+              ))}
+            </nav>
 
-                {tablesTab === "players-individual" ? (
-                  <div className="mt-4 overflow-auto">
-                    <table className="min-w-[900px] w-full border-collapse text-sm">
-                      <thead className="sticky top-0 bg-[color:var(--surface)]">
-                        <tr className="border-b border-[color:var(--surface-border)] text-left">
-                          <th className="px-2 py-2">#</th>
-                          <th className="px-2 py-2">Spiller</th>
-                          <th className="px-2 py-2">Kæde</th>
-                          <th className="px-2 py-2">GP</th>
-                          <th className="px-2 py-2">G</th>
-                          <th className="px-2 py-2">A</th>
-                          <th className="px-2 py-2">P</th>
-                          <th className="px-2 py-2">SOG</th>
-                          <th className="px-2 py-2">Miss</th>
-                          <th className="px-2 py-2">Blocks</th>
-                          <th className="px-2 py-2">Forsøg</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {playerIndividualRows.map((r) => (
-                          <tr key={r.name} className="border-b border-zinc-100">
-                            <td className="px-2 py-1.5 tabular-nums">{r.number ?? ""}</td>
-                            <td className="px-2 py-1.5">{r.name}</td>
-                            <td className="px-2 py-1.5">{r.line ?? ""}</td>
-                            <td className="px-2 py-1.5 tabular-nums">{r.gp}</td>
-                            <td className="px-2 py-1.5 tabular-nums">{r.g}</td>
-                            <td className="px-2 py-1.5 tabular-nums">{r.a}</td>
-                            <td className="px-2 py-1.5 tabular-nums">{r.p}</td>
-                            <td className="px-2 py-1.5 tabular-nums">{r.sog}</td>
-                            <td className="px-2 py-1.5 tabular-nums">{r.miss}</td>
-                            <td className="px-2 py-1.5 tabular-nums">{r.blocks}</td>
-                            <td className="px-2 py-1.5 tabular-nums">{r.attempts}</td>
-                          </tr>
-                        ))}
-                        {playerIndividualRows.length === 0 ? (
-                          <tr>
-                            <td className="px-2 py-3 text-sm text-zinc-600" colSpan={11}>
-                              Ingen data.
-                            </td>
-                          </tr>
-                        ) : null}
-                      </tbody>
-                    </table>
-                  </div>
-                ) : null}
+            {tablesTab === "players-individual" ? (
+              <div className="mt-4">
+                <SortableTable
+                  rows={playerIndividualRows}
+                  getRowKey={(r) => `${r.team}||${r.name}`}
+                  defaultSortKey="p"
+                  defaultSortDir="desc"
+                  minWidthClass="min-w-[1200px]"
+                  columns={[
+                    { key: "__rank", label: "Rank", getValue: () => 0 },
+                    { key: "name", label: "Navn", align: "left", getValue: (r) => r.name },
+                    { key: "team", label: "Hold", align: "left", getValue: (r) => r.team },
+                    { key: "gp", label: "Kampe", getValue: (r) => r.gp },
+                    { key: "g", label: "Mål", getValue: (r) => r.g },
+                    { key: "a", label: "Assist", getValue: (r) => r.a },
+                    { key: "p", label: "Point", getValue: (r) => r.p },
+                    { key: "penMinus", label: "Udv-", getValue: (r) => r.penMinus },
+                    { key: "penPlus", label: "Udv+", getValue: (r) => r.penPlus },
+                    { key: "shots", label: "Skud", getValue: (r) => r.shots },
+                    { key: "miss", label: "Mis", getValue: (r) => r.miss },
+                    { key: "shotInBlock", label: "Skud i Blok", getValue: (r) => r.shotInBlock },
+                    { key: "blocks", label: "Blokeringer", getValue: (r) => r.blocks },
+                    { key: "shPct", label: "Sh%", getValue: (r) => r.shPct, format: (r) => pct(r.shPct) },
+                  ]}
+                />
+              </div>
+            ) : null}
 
-                {tablesTab === "players-onice" ? (
-                  <div className="mt-4 overflow-auto">
-                    <table className="min-w-[1400px] w-full border-collapse text-sm">
-                      <thead className="sticky top-0 bg-[color:var(--surface)]">
-                        <tr className="border-b border-[color:var(--surface-border)] text-left">
-                          <th className="px-2 py-2">#</th>
-                          <th className="px-2 py-2">Spiller</th>
-                          <th className="px-2 py-2">Kæde</th>
-                          <th className="px-2 py-2">GP</th>
-                          <th className="px-2 py-2">CF</th>
-                          <th className="px-2 py-2">CA</th>
-                          <th className="px-2 py-2">CF%</th>
-                          <th className="px-2 py-2">FF</th>
-                          <th className="px-2 py-2">FA</th>
-                          <th className="px-2 py-2">FF%</th>
-                          <th className="px-2 py-2">SF</th>
-                          <th className="px-2 py-2">SA</th>
-                          <th className="px-2 py-2">SF%</th>
-                          <th className="px-2 py-2">GF</th>
-                          <th className="px-2 py-2">GA</th>
-                          <th className="px-2 py-2">GF%</th>
-                          <th className="px-2 py-2">PDO</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {playerOnIceRows.map((r) => (
-                          <tr key={r.name} className="border-b border-zinc-100">
-                            <td className="px-2 py-1.5 tabular-nums">{r.number ?? ""}</td>
-                            <td className="px-2 py-1.5">{r.name}</td>
-                            <td className="px-2 py-1.5">{r.line ?? ""}</td>
-                            <td className="px-2 py-1.5 tabular-nums">{r.gp}</td>
-                            <td className="px-2 py-1.5 tabular-nums">{r.cf}</td>
-                            <td className="px-2 py-1.5 tabular-nums">{r.ca}</td>
-                            <td
-                              className="px-2 py-1.5 tabular-nums text-zinc-900"
-                              style={{ background: colorScaleRedWhiteBlue(r.cfPct, 20, 50, 80) }}
-                            >
-                              {pct(r.cfPct)}
-                            </td>
-                            <td className="px-2 py-1.5 tabular-nums">{r.ff}</td>
-                            <td className="px-2 py-1.5 tabular-nums">{r.fa}</td>
-                            <td
-                              className="px-2 py-1.5 tabular-nums text-zinc-900"
-                              style={{ background: colorScaleRedWhiteBlue(r.ffPct, 20, 50, 80) }}
-                            >
-                              {pct(r.ffPct)}
-                            </td>
-                            <td className="px-2 py-1.5 tabular-nums">{r.sf}</td>
-                            <td className="px-2 py-1.5 tabular-nums">{r.sa}</td>
-                            <td
-                              className="px-2 py-1.5 tabular-nums text-zinc-900"
-                              style={{ background: colorScaleRedWhiteBlue(r.sfPct, 20, 50, 80) }}
-                            >
-                              {pct(r.sfPct)}
-                            </td>
-                            <td className="px-2 py-1.5 tabular-nums">{r.gf}</td>
-                            <td className="px-2 py-1.5 tabular-nums">{r.ga}</td>
-                            <td
-                              className="px-2 py-1.5 tabular-nums text-zinc-900"
-                              style={{ background: colorScaleRedWhiteBlue(r.gfPct, 20, 50, 80) }}
-                            >
-                              {pct(r.gfPct)}
-                            </td>
-                            <td
-                              className="px-2 py-1.5 tabular-nums text-zinc-900"
-                              style={{ background: colorScaleRedWhiteBlue(r.pdo, 90, 100, 110) }}
-                            >
-                              {pct(r.pdo)}
-                            </td>
-                          </tr>
-                        ))}
-                        {playerOnIceRows.length === 0 ? (
-                          <tr>
-                            <td className="px-2 py-3 text-sm text-zinc-600" colSpan={17}>
-                              Ingen data.
-                            </td>
-                          </tr>
-                        ) : null}
-                      </tbody>
-                    </table>
-                  </div>
-                ) : null}
+            {tablesTab === "players-onice" ? (
+              <div className="mt-4">
+                <SortableTable
+                  rows={playerOnIceRows}
+                  getRowKey={(r) => `${r.team}||${r.name}`}
+                  defaultSortKey="cfPct"
+                  defaultSortDir="desc"
+                  minWidthClass="min-w-[1600px]"
+                  columns={[
+                    { key: "__rank", label: "Rank", getValue: () => 0 },
+                    { key: "name", label: "Spiller", align: "left", getValue: (r) => r.name },
+                    { key: "team", label: "Hold", align: "left", getValue: (r) => r.team },
+                    { key: "gp", label: "Kampe", getValue: (r) => r.gp },
+                    { key: "cf", label: "CF", getValue: (r) => r.cf },
+                    { key: "ca", label: "CA", getValue: (r) => r.ca },
+                    {
+                      key: "cfPct",
+                      label: "CF%",
+                      getValue: (r) => r.cfPct,
+                      format: (r) => pct(r.cfPct),
+                      style: (r) => ({ background: colorScaleRedWhiteBlue(r.cfPct, 20, 50, 80) }),
+                    },
+                    { key: "ff", label: "FF", getValue: (r) => r.ff },
+                    { key: "fa", label: "FA", getValue: (r) => r.fa },
+                    {
+                      key: "ffPct",
+                      label: "FF%",
+                      getValue: (r) => r.ffPct,
+                      format: (r) => pct(r.ffPct),
+                      style: (r) => ({ background: colorScaleRedWhiteBlue(r.ffPct, 20, 50, 80) }),
+                    },
+                    { key: "sf", label: "SF", getValue: (r) => r.sf },
+                    { key: "sa", label: "SA", getValue: (r) => r.sa },
+                    {
+                      key: "sfPct",
+                      label: "SF%",
+                      getValue: (r) => r.sfPct,
+                      format: (r) => pct(r.sfPct),
+                      style: (r) => ({ background: colorScaleRedWhiteBlue(r.sfPct, 20, 50, 80) }),
+                    },
+                    { key: "gf", label: "GF", getValue: (r) => r.gf },
+                    { key: "ga", label: "GA", getValue: (r) => r.ga },
+                    {
+                      key: "gfPct",
+                      label: "GF%",
+                      getValue: (r) => r.gfPct,
+                      format: (r) => pct(r.gfPct),
+                      style: (r) => ({ background: colorScaleRedWhiteBlue(r.gfPct, 20, 50, 80) }),
+                    },
+                    { key: "shPct", label: "Sh%", getValue: (r) => r.shPct, format: (r) => pct(r.shPct) },
+                    { key: "svPct", label: "Sv%", getValue: (r) => r.svPct, format: (r) => pct(r.svPct) },
+                    {
+                      key: "pdo",
+                      label: "PDO",
+                      getValue: (r) => r.pdo,
+                      format: (r) => pct(r.pdo),
+                      style: (r) => ({ background: colorScaleRedWhiteBlue(r.pdo, 90, 100, 110) }),
+                    },
+                  ]}
+                />
+              </div>
+            ) : null}
 
-                {tablesTab === "goalies" ? (
-                  <div className="mt-4 overflow-auto">
-                    <table className="min-w-[800px] w-full border-collapse text-sm">
-                      <thead className="sticky top-0 bg-[color:var(--surface)]">
-                        <tr className="border-b border-[color:var(--surface-border)] text-left">
-                          <th className="px-2 py-2">Målmand</th>
-                          <th className="px-2 py-2">Kampe</th>
-                          <th className="px-2 py-2">SA</th>
-                          <th className="px-2 py-2">GA</th>
-                          <th className="px-2 py-2">Sv%</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {goalieRows.map((r) => (
-                          <tr key={r.name} className="border-b border-zinc-100">
-                            <td className="px-2 py-1.5">{r.name}</td>
-                            <td className="px-2 py-1.5 tabular-nums">{r.games}</td>
-                            <td className="px-2 py-1.5 tabular-nums">{r.sa}</td>
-                            <td className="px-2 py-1.5 tabular-nums">{r.ga}</td>
-                            <td className="px-2 py-1.5 tabular-nums">{pct(r.svPct)}</td>
-                          </tr>
-                        ))}
-                        {goalieRows.length === 0 ? (
-                          <tr>
-                            <td className="px-2 py-3 text-sm text-zinc-600" colSpan={5}>
-                              Ingen data.
-                            </td>
-                          </tr>
-                        ) : null}
-                      </tbody>
-                    </table>
-                  </div>
-                ) : null}
+            {tablesTab === "goalies" ? (
+              <div className="mt-4">
+                <SortableTable
+                  rows={goalieRows}
+                  getRowKey={(r) => `${r.team}||${r.name}`}
+                  defaultSortKey="svPct"
+                  defaultSortDir="desc"
+                  minWidthClass="min-w-[900px]"
+                  columns={[
+                    { key: "__rank", label: "Rank", getValue: () => 0 },
+                    { key: "name", label: "Målmand", align: "left", getValue: (r) => r.name },
+                    { key: "team", label: "Hold", align: "left", getValue: (r) => r.team },
+                    { key: "games", label: "Kampe", getValue: (r) => r.games },
+                    { key: "sa", label: "SA", getValue: (r) => r.sa },
+                    { key: "ga", label: "GA", getValue: (r) => r.ga },
+                    { key: "svPct", label: "Sv%", getValue: (r) => r.svPct, format: (r) => pct(r.svPct) },
+                  ]}
+                />
+              </div>
+            ) : null}
 
-                {tablesTab === "team" ? (
-                  <div className="mt-4 overflow-auto">
-                    <table className="min-w-[1400px] w-full border-collapse text-sm">
-                      <thead className="sticky top-0 bg-[color:var(--surface)]">
-                        <tr className="border-b border-[color:var(--surface-border)] text-left">
-                          <th className="px-2 py-2">Kamp</th>
-                          <th className="px-2 py-2">CF</th>
-                          <th className="px-2 py-2">CA</th>
-                          <th className="px-2 py-2">CF%</th>
-                          <th className="px-2 py-2">FF</th>
-                          <th className="px-2 py-2">FA</th>
-                          <th className="px-2 py-2">FF%</th>
-                          <th className="px-2 py-2">SF</th>
-                          <th className="px-2 py-2">SA</th>
-                          <th className="px-2 py-2">SF%</th>
-                          <th className="px-2 py-2">GF</th>
-                          <th className="px-2 py-2">GA</th>
-                          <th className="px-2 py-2">GF%</th>
-                          <th className="px-2 py-2">PDO</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {teamByGameRows.map((r) => (
-                          <tr key={r.gameId} className="border-b border-zinc-100">
-                            <td className="px-2 py-1.5">{r.label}</td>
-                            <td className="px-2 py-1.5 tabular-nums">{r.cf}</td>
-                            <td className="px-2 py-1.5 tabular-nums">{r.ca}</td>
-                            <td
-                              className="px-2 py-1.5 tabular-nums text-zinc-900"
-                              style={{ background: colorScaleRedWhiteBlue(r.cfPct, 20, 50, 80) }}
-                            >
-                              {pct(r.cfPct)}
-                            </td>
-                            <td className="px-2 py-1.5 tabular-nums">{r.ff}</td>
-                            <td className="px-2 py-1.5 tabular-nums">{r.fa}</td>
-                            <td
-                              className="px-2 py-1.5 tabular-nums text-zinc-900"
-                              style={{ background: colorScaleRedWhiteBlue(r.ffPct, 20, 50, 80) }}
-                            >
-                              {pct(r.ffPct)}
-                            </td>
-                            <td className="px-2 py-1.5 tabular-nums">{r.sf}</td>
-                            <td className="px-2 py-1.5 tabular-nums">{r.sa}</td>
-                            <td
-                              className="px-2 py-1.5 tabular-nums text-zinc-900"
-                              style={{ background: colorScaleRedWhiteBlue(r.sfPct, 20, 50, 80) }}
-                            >
-                              {pct(r.sfPct)}
-                            </td>
-                            <td className="px-2 py-1.5 tabular-nums">{r.gf}</td>
-                            <td className="px-2 py-1.5 tabular-nums">{r.ga}</td>
-                            <td
-                              className="px-2 py-1.5 tabular-nums text-zinc-900"
-                              style={{ background: colorScaleRedWhiteBlue(r.gfPct, 20, 50, 80) }}
-                            >
-                              {pct(r.gfPct)}
-                            </td>
-                            <td
-                              className="px-2 py-1.5 tabular-nums text-zinc-900"
-                              style={{ background: colorScaleRedWhiteBlue(r.pdo, 90, 100, 110) }}
-                            >
-                              {pct(r.pdo)}
-                            </td>
-                          </tr>
-                        ))}
-                        {teamByGameRows.length === 0 ? (
-                          <tr>
-                            <td className="px-2 py-3 text-sm text-zinc-600" colSpan={14}>
-                              Ingen data.
-                            </td>
-                          </tr>
-                        ) : null}
-                      </tbody>
-                    </table>
-                  </div>
-                ) : null}
-              </>
-            )}
+            {tablesTab === "team" ? (
+              <div className="mt-4">
+                <SortableTable
+                  rows={teamRows}
+                  getRowKey={(r) => r.team}
+                  defaultSortKey="cfPct"
+                  defaultSortDir="desc"
+                  minWidthClass="min-w-[1600px]"
+                  columns={[
+                    { key: "__rank", label: "Rank", getValue: () => 0 },
+                    { key: "team", label: "Hold", align: "left", getValue: (r) => r.team },
+                    { key: "cf", label: "CF", getValue: (r) => r.cf },
+                    { key: "ca", label: "CA", getValue: (r) => r.ca },
+                    {
+                      key: "cfPct",
+                      label: "CF%",
+                      getValue: (r) => r.cfPct,
+                      format: (r) => pct(r.cfPct),
+                      style: (r) => ({ background: colorScaleRedWhiteBlue(r.cfPct, 20, 50, 80) }),
+                    },
+                    { key: "ff", label: "FF", getValue: (r) => r.ff },
+                    { key: "fa", label: "FA", getValue: (r) => r.fa },
+                    {
+                      key: "ffPct",
+                      label: "FF%",
+                      getValue: (r) => r.ffPct,
+                      format: (r) => pct(r.ffPct),
+                      style: (r) => ({ background: colorScaleRedWhiteBlue(r.ffPct, 20, 50, 80) }),
+                    },
+                    { key: "sf", label: "SF", getValue: (r) => r.sf },
+                    { key: "sa", label: "SA", getValue: (r) => r.sa },
+                    {
+                      key: "sfPct",
+                      label: "SF%",
+                      getValue: (r) => r.sfPct,
+                      format: (r) => pct(r.sfPct),
+                      style: (r) => ({ background: colorScaleRedWhiteBlue(r.sfPct, 20, 50, 80) }),
+                    },
+                    { key: "gf", label: "GF", getValue: (r) => r.gf },
+                    { key: "ga", label: "GA", getValue: (r) => r.ga },
+                    {
+                      key: "gfPct",
+                      label: "GF%",
+                      getValue: (r) => r.gfPct,
+                      format: (r) => pct(r.gfPct),
+                      style: (r) => ({ background: colorScaleRedWhiteBlue(r.gfPct, 20, 50, 80) }),
+                    },
+                    { key: "shPct", label: "Sh%", getValue: (r) => r.shPct, format: (r) => pct(r.shPct) },
+                    { key: "svPct", label: "Sv%", getValue: (r) => r.svPct, format: (r) => pct(r.svPct) },
+                    {
+                      key: "pdo",
+                      label: "PDO",
+                      getValue: (r) => r.pdo,
+                      format: (r) => pct(r.pdo),
+                      style: (r) => ({ background: colorScaleRedWhiteBlue(r.pdo, 90, 100, 110) }),
+                    },
+                  ]}
+                />
+              </div>
+            ) : null}
           </div>
         </section>
       ) : (
