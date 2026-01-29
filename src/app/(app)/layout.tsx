@@ -51,9 +51,6 @@ export default async function AppLayout({
                 src={selectedTeamLogoUrl}
                 alt="Logo"
                 className="h-9 w-9 rounded-md bg-white/90 object-contain p-1"
-                onError={(e) => {
-                  (e.currentTarget as HTMLImageElement).style.display = "none";
-                }}
               />
             ) : null}
             <span>Floorball</span>

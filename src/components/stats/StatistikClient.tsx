@@ -221,20 +221,20 @@ function KpiCard({
   className?: string;
 }) {
   return (
-    <div className={`rounded-md bg-[color:var(--surface)]/70 px-2 py-1.5 ${className ?? ""}`.trim()}>
-      <div className="text-center text-xs font-semibold text-zinc-700">{title}</div>
+    <div className={`rounded-md bg-[color:var(--surface)]/70 px-2.5 py-2 ${className ?? ""}`.trim()}>
+      <div className="text-center text-sm font-semibold text-zinc-700">{title}</div>
       <div className="mt-1 grid grid-cols-3 gap-1">
         <div className="rounded-md bg-[color:var(--surface)] px-2 py-1 text-center">
-          <div className="text-[10px] leading-4 text-zinc-500">{leftLabel}</div>
-          <div className="text-sm font-semibold tabular-nums">{leftValue}</div>
+          <div className="text-xs leading-4 text-zinc-500">{leftLabel}</div>
+          <div className="text-base font-semibold tabular-nums">{leftValue}</div>
         </div>
         <div className="rounded-md px-2 py-1 text-center" style={{ background: midBg }}>
-          <div className="text-[10px] leading-4 text-zinc-800">{midLabel}</div>
-          <div className="text-sm font-semibold tabular-nums text-zinc-900">{midValue}</div>
+          <div className="text-xs leading-4 text-zinc-800">{midLabel}</div>
+          <div className="text-base font-semibold tabular-nums text-zinc-900">{midValue}</div>
         </div>
         <div className="rounded-md bg-[color:var(--surface)] px-2 py-1 text-center">
-          <div className="text-[10px] leading-4 text-zinc-500">{rightLabel}</div>
-          <div className="text-sm font-semibold tabular-nums">{rightValue}</div>
+          <div className="text-xs leading-4 text-zinc-500">{rightLabel}</div>
+          <div className="text-base font-semibold tabular-nums">{rightValue}</div>
         </div>
       </div>
     </div>
@@ -897,7 +897,7 @@ export default function StatistikClient({ isLeader }: { isLeader: boolean }) {
             ) : shotMapEvents.length === 0 ? (
               <p className="mt-4 text-sm text-zinc-600">Ingen events.</p>
             ) : (
-              <div className="mt-4 grid gap-4 md:grid-cols-[1fr_220px_1fr] md:items-stretch">
+              <div className="mt-4 grid gap-2 md:grid-cols-[minmax(0,1fr)_180px_minmax(0,1fr)] md:items-stretch">
                 <HalfRink
                   title="Defensive End"
                   half="left"
