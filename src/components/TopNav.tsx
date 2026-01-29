@@ -10,8 +10,10 @@ export type TopNavUser = {
 
 export default function TopNav({
   user,
+  logoUrl,
 }: {
   user: TopNavUser | null;
+  logoUrl?: string | null;
 }) {
   async function logout() {
     await fetch("/api/auth/logout", { method: "POST" });
@@ -115,6 +117,17 @@ export default function TopNav({
         </div>
 
         <div className="flex items-center gap-3 text-base">
+          {logoUrl ? (
+            <img
+              src={logoUrl}
+              alt="Logo"
+              className="h-12 w-12 shrink-0 object-contain"
+              onError={(e) => {
+                (e.currentTarget as HTMLImageElement).style.display = "none";
+              }}
+            />
+          ) : null}
+
           {user ? (
             <details className="relative">
               <summary className="cursor-pointer list-none font-medium select-none">

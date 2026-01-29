@@ -20,6 +20,7 @@ export default async function PublicLayout({
               }
             : null
         }
+        logoUrl={null}
       />
       {children}
     </div>

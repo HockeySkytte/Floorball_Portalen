@@ -59,7 +59,7 @@ export default function MobileAppHeader({
                 <img
                   src={logoUrl}
                   alt="Logo"
-                  className="h-10 w-10 rounded-md bg-white/90 object-contain p-1"
+                  className="h-12 w-12 rounded-md object-contain"
                   onError={(e) => {
                     (e.currentTarget as HTMLImageElement).style.display = "none";
                   }}
