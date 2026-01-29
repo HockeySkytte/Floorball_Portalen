@@ -25,10 +25,38 @@ const colorLabels: Record<TeamColor, string> = {
 
 export default function AdminPage() {
   const [teamName, setTeamName] = useState("");
+  const [teamLogoUrl, setTeamLogoUrl] = useState("");
   const [themePrimary, setThemePrimary] = useState<TeamColor>("RED");
   const [themeSecondary, setThemeSecondary] = useState<"WHITE" | "BLACK">("WHITE");
   const [teamError, setTeamError] = useState<string | null>(null);
   const [teamSuccess, setTeamSuccess] = useState<string | null>(null);
+
+  const [teams, setTeams] = useState<
+    {
+      id: string;
+      name: string;
+      logoUrl: string | null;
+      themePrimary: TeamColor;
+      themeSecondary: "WHITE" | "BLACK" | TeamColor;
+      createdAt: string;
+      updatedAt: string;
+    }[]
+  >([]);
+  const [teamsLoading, setTeamsLoading] = useState(false);
+  const [teamsError, setTeamsError] = useState<string | null>(null);
+
+  const [editingTeamId, setEditingTeamId] = useState<string | null>(null);
+  const [editName, setEditName] = useState("");
+  const [editLogoUrl, setEditLogoUrl] = useState("");
+  const [editPrimary, setEditPrimary] = useState<TeamColor>("RED");
+  const [editSecondary, setEditSecondary] = useState<"WHITE" | "BLACK">("WHITE");
+  const [editError, setEditError] = useState<string | null>(null);
+  const [editSuccess, setEditSuccess] = useState<string | null>(null);
+
+  const [deletingTeamId, setDeletingTeamId] = useState<string | null>(null);
+  const [deleteAdminCode, setDeleteAdminCode] = useState("");
+  const [deleteConfirmName, setDeleteConfirmName] = useState("");
+  const [deleteError, setDeleteError] = useState<string | null>(null);
 
   const [pending, setPending] = useState<PendingLeaderMembership[]>([]);
   const [loadingPending, setLoadingPending] = useState(false);
@@ -68,6 +96,25 @@ export default function AdminPage() {
     }
   }
 
+  async function loadTeams() {
+    setTeamsLoading(true);
+    setTeamsError(null);
+
+    try {
+      const res = await fetch("/api/admin/teams", { cache: "no-store" });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setTeams([]);
+        setTeamsError(data?.message ?? "Kunne ikke hente hold.");
+        return;
+      }
+
+      setTeams(data?.teams ?? []);
+    } finally {
+      setTeamsLoading(false);
+    }
+  }
+
   async function loadMembers() {
     setMembersLoading(true);
     setMembersError(null);
@@ -90,6 +137,7 @@ export default function AdminPage() {
   useEffect(() => {
     loadPending();
     loadMembers();
+    loadTeams();
   }, []);
 
   async function createTeam(e: React.FormEvent) {
@@ -106,7 +154,12 @@ export default function AdminPage() {
     const res = await fetch("/api/admin/teams", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ name, themePrimary, themeSecondary }),
+      body: JSON.stringify({
+        name,
+        logoUrl: teamLogoUrl.trim(),
+        themePrimary,
+        themeSecondary,
+      }),
     });
 
     const data = await res.json().catch(() => ({}));
@@ -118,6 +171,92 @@ export default function AdminPage() {
     const team = data?.team as Team | undefined;
     setTeamSuccess(team ? `Hold oprettet: ${team.name}` : "Hold oprettet.");
     setTeamName("");
+    setTeamLogoUrl("");
+    await loadTeams();
+  }
+
+  function startEditTeam(t: { id: string; name: string; logoUrl: string | null; themePrimary: TeamColor; themeSecondary: TeamColor }) {
+    setEditError(null);
+    setEditSuccess(null);
+    setEditingTeamId(t.id);
+    setEditName(t.name);
+    setEditLogoUrl(t.logoUrl ?? "");
+    setEditPrimary(t.themePrimary);
+    setEditSecondary((t.themeSecondary as "WHITE" | "BLACK") ?? "WHITE");
+    setDeletingTeamId(null);
+    setDeleteError(null);
+  }
+
+  function cancelEditTeam() {
+    setEditingTeamId(null);
+    setEditName("");
+    setEditLogoUrl("");
+    setEditPrimary("RED");
+    setEditSecondary("WHITE");
+    setEditError(null);
+  }
+
+  async function saveTeam(teamId: string) {
+    setEditError(null);
+    setEditSuccess(null);
+
+    const res = await fetch(`/api/admin/teams/${teamId}`,
+      {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: editName.trim(),
+          logoUrl: editLogoUrl.trim(),
+          themePrimary: editPrimary,
+          themeSecondary: editSecondary,
+        }),
+      }
+    );
+
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      setEditError(data?.message ?? "Kunne ikke opdatere hold.");
+      return;
+    }
+
+    setEditSuccess("Hold opdateret.");
+    setEditingTeamId(null);
+    await loadTeams();
+  }
+
+  function startDeleteTeam(teamId: string) {
+    setDeletingTeamId(teamId);
+    setDeleteAdminCode("");
+    setDeleteConfirmName("");
+    setDeleteError(null);
+    setEditingTeamId(null);
+    setEditError(null);
+    setEditSuccess(null);
+  }
+
+  async function confirmDeleteTeam(teamId: string) {
+    setDeleteError(null);
+    const res = await fetch(`/api/admin/teams/${teamId}`,
+      {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          adminCode: deleteAdminCode,
+          confirmName: deleteConfirmName,
+        }),
+      }
+    );
+
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      setDeleteError(data?.message ?? "Kunne ikke slette hold.");
+      return;
+    }
+
+    setDeletingTeamId(null);
+    setDeleteAdminCode("");
+    setDeleteConfirmName("");
+    await loadTeams();
   }
 
   async function approveLeader(membershipId: string, approve: boolean) {
@@ -170,6 +309,12 @@ export default function AdminPage() {
             value={teamName}
             onChange={(e) => setTeamName(e.target.value)}
           />
+          <input
+            className="sm:col-span-2 rounded-md border border-zinc-300 px-3 py-2"
+            placeholder="Logo URL (valgfri)"
+            value={teamLogoUrl}
+            onChange={(e) => setTeamLogoUrl(e.target.value)}
+          />
           <select
             className="rounded-md border border-zinc-300 bg-white px-3 py-2"
             value={themePrimary}
@@ -195,6 +340,182 @@ export default function AdminPage() {
         </form>
         {teamError ? <p className="mt-2 text-sm text-red-600">{teamError}</p> : null}
         {teamSuccess ? <p className="mt-2 text-sm text-green-700">{teamSuccess}</p> : null}
+      </section>
+
+      <section className="rounded-md border bg-white p-4">
+        <div className="flex items-center justify-between">
+          <h2 className="text-lg font-semibold">Hold (alle)</h2>
+          <button
+            type="button"
+            onClick={loadTeams}
+            className="rounded-md border border-zinc-300 bg-white px-3 py-1.5 text-sm"
+            disabled={teamsLoading}
+          >
+            Opdater
+          </button>
+        </div>
+
+        {teamsError ? <p className="mt-2 text-sm text-red-600">{teamsError}</p> : null}
+        {editError ? <p className="mt-2 text-sm text-red-600">{editError}</p> : null}
+        {editSuccess ? <p className="mt-2 text-sm text-green-700">{editSuccess}</p> : null}
+        {deleteError ? <p className="mt-2 text-sm text-red-600">{deleteError}</p> : null}
+
+        {teams.length === 0 ? (
+          <p className="mt-4 text-sm text-zinc-600">Ingen hold.</p>
+        ) : (
+          <div className="mt-4 space-y-3">
+            {teams.map((t) => {
+              const isEditing = editingTeamId === t.id;
+              const isDeleting = deletingTeamId === t.id;
+              const themeSecondaryValue = (t.themeSecondary as "WHITE" | "BLACK") ?? "WHITE";
+
+              return (
+                <div key={t.id} className="rounded-md border border-zinc-200 p-3">
+                  <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                    <div className="min-w-0">
+                      <div className="flex items-center gap-3">
+                        {t.logoUrl ? (
+                          <img
+                            src={t.logoUrl}
+                            alt="Logo"
+                            className="h-9 w-9 rounded-md bg-white object-contain p-1"
+                            onError={(e) => {
+                              (e.currentTarget as HTMLImageElement).style.display = "none";
+                            }}
+                          />
+                        ) : null}
+                        <div className="min-w-0">
+                          <div className="truncate text-sm font-semibold">{t.name}</div>
+                          <div className="text-xs text-zinc-600">
+                            {t.themePrimary} / {themeSecondaryValue}
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="flex flex-wrap gap-2">
+                      <button
+                        type="button"
+                        onClick={() => startEditTeam({
+                          id: t.id,
+                          name: t.name,
+                          logoUrl: t.logoUrl,
+                          themePrimary: t.themePrimary,
+                          themeSecondary: t.themeSecondary as TeamColor,
+                        })}
+                        className="rounded-md border border-zinc-300 bg-white px-3 py-1.5 text-sm"
+                      >
+                        Rediger
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => startDeleteTeam(t.id)}
+                        className="rounded-md border border-red-300 bg-white px-3 py-1.5 text-sm text-red-700"
+                      >
+                        Slet
+                      </button>
+                    </div>
+                  </div>
+
+                  {isEditing ? (
+                    <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-4">
+                      <input
+                        className="sm:col-span-2 rounded-md border border-zinc-300 px-3 py-2"
+                        value={editName}
+                        onChange={(e) => setEditName(e.target.value)}
+                        placeholder="Holdnavn"
+                      />
+                      <input
+                        className="sm:col-span-2 rounded-md border border-zinc-300 px-3 py-2"
+                        value={editLogoUrl}
+                        onChange={(e) => setEditLogoUrl(e.target.value)}
+                        placeholder="Logo URL (valgfri)"
+                      />
+
+                      <select
+                        className="rounded-md border border-zinc-300 bg-white px-3 py-2"
+                        value={editPrimary}
+                        onChange={(e) => setEditPrimary(e.target.value as TeamColor)}
+                      >
+                        {Object.entries(colorLabels).map(([value, label]) => (
+                          <option key={value} value={value}>
+                            Primær: {label}
+                          </option>
+                        ))}
+                      </select>
+                      <select
+                        className="rounded-md border border-zinc-300 bg-white px-3 py-2"
+                        value={editSecondary}
+                        onChange={(e) => setEditSecondary(e.target.value as "WHITE" | "BLACK")}
+                      >
+                        <option value="WHITE">Sekundær: {colorLabels.WHITE}</option>
+                        <option value="BLACK">Sekundær: {colorLabels.BLACK}</option>
+                      </select>
+
+                      <div className="sm:col-span-4 flex flex-wrap gap-2">
+                        <button
+                          type="button"
+                          onClick={() => saveTeam(t.id)}
+                          className="rounded-md bg-zinc-900 px-4 py-2 text-sm text-white"
+                        >
+                          Gem
+                        </button>
+                        <button
+                          type="button"
+                          onClick={cancelEditTeam}
+                          className="rounded-md border border-zinc-300 bg-white px-4 py-2 text-sm"
+                        >
+                          Annuller
+                        </button>
+                      </div>
+                    </div>
+                  ) : null}
+
+                  {isDeleting ? (
+                    <div className="mt-4 rounded-md border border-red-200 bg-red-50 p-3">
+                      <div className="text-sm font-semibold text-red-800">
+                        Bekræft sletning
+                      </div>
+                      <p className="mt-1 text-sm text-red-700">
+                        Skriv holdnavnet og admin-koden for at slette. Dette sletter også relateret statistik og medlemskaber.
+                      </p>
+                      <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-4">
+                        <input
+                          className="sm:col-span-2 rounded-md border border-red-300 bg-white px-3 py-2"
+                          placeholder={`Skriv: ${t.name}`}
+                          value={deleteConfirmName}
+                          onChange={(e) => setDeleteConfirmName(e.target.value)}
+                        />
+                        <input
+                          className="sm:col-span-2 rounded-md border border-red-300 bg-white px-3 py-2"
+                          placeholder="Admin kode"
+                          value={deleteAdminCode}
+                          onChange={(e) => setDeleteAdminCode(e.target.value)}
+                        />
+                        <div className="sm:col-span-4 flex flex-wrap gap-2">
+                          <button
+                            type="button"
+                            onClick={() => confirmDeleteTeam(t.id)}
+                            className="rounded-md bg-red-700 px-4 py-2 text-sm text-white"
+                          >
+                            Slet hold
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setDeletingTeamId(null)}
+                            className="rounded-md border border-red-300 bg-white px-4 py-2 text-sm"
+                          >
+                            Annuller
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  ) : null}
+                </div>
+              );
+            })}
+          </div>
+        )}
       </section>
 
       <section className="rounded-md border bg-white p-4">

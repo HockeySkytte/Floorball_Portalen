@@ -9,7 +9,16 @@ export async function getThemeTeam() {
   const session = await getSession();
   if (!session.selectedTeamId) return null;
 
-  return prisma.team.findUnique({
+  const team = await prisma.team.findUnique({
     where: { id: session.selectedTeamId },
+  });
+
+  if (team) return team;
+
+  session.selectedTeamId = undefined;
+  await session.save();
+
+  return prisma.team.findFirst({
+    orderBy: { name: "asc" },
   });
 }

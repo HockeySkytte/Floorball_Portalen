@@ -32,7 +32,19 @@ export async function getCurrentUser() {
       activeTeam =
         user.memberships.find((m) => m.teamId === selectedTeamId)?.team ??
         (await prisma.team.findUnique({ where: { id: selectedTeamId } }));
-      activeTeamId = activeTeam?.id ?? selectedTeamId;
+
+      if (activeTeam) {
+        activeTeamId = activeTeam.id;
+      } else {
+        session.selectedTeamId = undefined;
+        await session.save();
+
+        const firstTeam = await prisma.team.findFirst({
+          orderBy: { name: "asc" },
+        });
+        activeTeam = firstTeam;
+        activeTeamId = firstTeam?.id ?? null;
+      }
     } else {
       const firstTeam = await prisma.team.findFirst({
         orderBy: { name: "asc" },

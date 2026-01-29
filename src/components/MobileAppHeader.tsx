@@ -16,11 +16,13 @@ export default function MobileAppHeader({
   isAdmin,
   teams,
   selectedTeamId,
+  logoUrl,
 }: {
   user: MobileAppHeaderUser;
   isAdmin: boolean;
   teams: TeamOption[];
   selectedTeamId: string | null;
+  logoUrl: string | null;
 }) {
   const pathname = usePathname();
   const [filtersOpen, setFiltersOpen] = useState(true);
@@ -52,7 +54,19 @@ export default function MobileAppHeader({
       <div className="bg-[image:var(--sidebar-gradient)] bg-cover bg-no-repeat text-[var(--brand-foreground)]">
         <div className="flex items-start justify-between px-5 pt-5">
           <div>
-            <div className="text-2xl font-semibold tracking-tight">Floorball</div>
+            <div className="flex items-center gap-3 text-2xl font-semibold tracking-tight">
+              {logoUrl ? (
+                <img
+                  src={logoUrl}
+                  alt="Logo"
+                  className="h-10 w-10 rounded-md bg-white/90 object-contain p-1"
+                  onError={(e) => {
+                    (e.currentTarget as HTMLImageElement).style.display = "none";
+                  }}
+                />
+              ) : null}
+              <span>Floorball</span>
+            </div>
             <div className="mt-1 text-sm opacity-80">{user.username}</div>
           </div>
 

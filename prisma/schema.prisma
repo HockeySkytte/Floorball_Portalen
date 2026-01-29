@@ -44,6 +44,7 @@ enum StatsFileKind {
 model Team {
   id        String   @id @default(cuid())
   name      String   @unique
+  logoUrl   String?
   themePrimary   TeamColor @default(RED)
   themeSecondary TeamColor @default(WHITE)
   memberships TeamMembership[]

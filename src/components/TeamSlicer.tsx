@@ -6,6 +6,7 @@ import { useState } from "react";
 export type TeamOption = {
   id: string;
   name: string;
+  logoUrl?: string | null;
 };
 
 export default function TeamSlicer({

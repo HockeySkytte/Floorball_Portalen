@@ -3,7 +3,7 @@ import { prisma } from "@/lib/prisma";
 
 export async function GET() {
   const teams = await prisma.team.findMany({
-    select: { id: true, name: true },
+    select: { id: true, name: true, logoUrl: true },
     orderBy: { name: "asc" },
   });
 

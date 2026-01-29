@@ -208,6 +208,7 @@ function KpiCard({
   midValue,
   rightValue,
   midBg,
+  className,
 }: {
   title: string;
   leftLabel: string;
@@ -217,22 +218,23 @@ function KpiCard({
   midValue: string;
   rightValue: string;
   midBg: string;
+  className?: string;
 }) {
   return (
-    <div className="rounded-md border border-[color:var(--surface-border)] bg-[color:var(--surface)] px-3 py-2">
-      <div className="text-center text-sm font-semibold">{title}</div>
-      <div className="mt-2 grid grid-cols-3 gap-1.5">
-        <div className="rounded-md border border-[color:var(--surface-border)] bg-[color:var(--surface)] px-2 py-1 text-center">
-          <div className="text-xs text-zinc-500">{leftLabel}</div>
-          <div className="mt-0.5 text-base font-semibold tabular-nums">{leftValue}</div>
+    <div className={`rounded-md bg-[color:var(--surface)]/70 px-2 py-1.5 ${className ?? ""}`.trim()}>
+      <div className="text-center text-xs font-semibold text-zinc-700">{title}</div>
+      <div className="mt-1 grid grid-cols-3 gap-1">
+        <div className="rounded-md bg-[color:var(--surface)] px-2 py-1 text-center">
+          <div className="text-[10px] leading-4 text-zinc-500">{leftLabel}</div>
+          <div className="text-sm font-semibold tabular-nums">{leftValue}</div>
         </div>
-        <div className="rounded-md border border-[color:var(--surface-border)] px-2 py-1 text-center" style={{ background: midBg }}>
-          <div className="text-xs text-zinc-700">{midLabel}</div>
-          <div className="mt-0.5 text-base font-semibold tabular-nums text-zinc-900">{midValue}</div>
+        <div className="rounded-md px-2 py-1 text-center" style={{ background: midBg }}>
+          <div className="text-[10px] leading-4 text-zinc-800">{midLabel}</div>
+          <div className="text-sm font-semibold tabular-nums text-zinc-900">{midValue}</div>
         </div>
-        <div className="rounded-md border border-[color:var(--surface-border)] bg-[color:var(--surface)] px-2 py-1 text-center">
-          <div className="text-xs text-zinc-500">{rightLabel}</div>
-          <div className="mt-0.5 text-base font-semibold tabular-nums">{rightValue}</div>
+        <div className="rounded-md bg-[color:var(--surface)] px-2 py-1 text-center">
+          <div className="text-[10px] leading-4 text-zinc-500">{rightLabel}</div>
+          <div className="text-sm font-semibold tabular-nums">{rightValue}</div>
         </div>
       </div>
     </div>
@@ -895,7 +897,7 @@ export default function StatistikClient({ isLeader }: { isLeader: boolean }) {
             ) : shotMapEvents.length === 0 ? (
               <p className="mt-4 text-sm text-zinc-600">Ingen events.</p>
             ) : (
-              <div className="mt-4 grid gap-4 md:grid-cols-[1fr_220px_1fr] md:items-start">
+              <div className="mt-4 grid gap-4 md:grid-cols-[1fr_220px_1fr] md:items-stretch">
                 <HalfRink
                   title="Defensive End"
                   half="left"
@@ -905,7 +907,7 @@ export default function StatistikClient({ isLeader }: { isLeader: boolean }) {
                   teamColors={teamColors}
                 />
 
-                <div className="space-y-3">
+                <div className="flex h-full flex-col justify-between gap-2">
                   {shotMapKpis ? (
                     <>
                       <KpiCard
@@ -917,6 +919,7 @@ export default function StatistikClient({ isLeader }: { isLeader: boolean }) {
                         midValue={String(pct(shotMapKpis.corsi.cfPct))}
                         rightValue={String(shotMapKpis.corsi.cf)}
                         midBg={colorScaleRedWhiteBlue(shotMapKpis.corsi.cfPct, 20, 50, 80)}
+                        className="flex-1"
                       />
                       <KpiCard
                         title="Fenwick"
@@ -927,6 +930,7 @@ export default function StatistikClient({ isLeader }: { isLeader: boolean }) {
                         midValue={String(pct(shotMapKpis.fenwick.ffPct))}
                         rightValue={String(shotMapKpis.fenwick.ff)}
                         midBg={colorScaleRedWhiteBlue(shotMapKpis.fenwick.ffPct, 20, 50, 80)}
+                        className="flex-1"
                       />
                       <KpiCard
                         title="Shots"
@@ -937,6 +941,7 @@ export default function StatistikClient({ isLeader }: { isLeader: boolean }) {
                         midValue={String(pct(shotMapKpis.shots.sfPct))}
                         rightValue={String(shotMapKpis.shots.sf)}
                         midBg={colorScaleRedWhiteBlue(shotMapKpis.shots.sfPct, 20, 50, 80)}
+                        className="flex-1"
                       />
                       <KpiCard
                         title="Goals"
@@ -947,6 +952,7 @@ export default function StatistikClient({ isLeader }: { isLeader: boolean }) {
                         midValue={String(pct(shotMapKpis.goals.gfPct))}
                         rightValue={String(shotMapKpis.goals.gf)}
                         midBg={colorScaleRedWhiteBlue(shotMapKpis.goals.gfPct, 20, 50, 80)}
+                        className="flex-1"
                       />
                       <KpiCard
                         title="Shooting / Goaltending"
@@ -957,6 +963,7 @@ export default function StatistikClient({ isLeader }: { isLeader: boolean }) {
                         midValue={String(pct(shotMapKpis.sg.pdo))}
                         rightValue={String(pct(shotMapKpis.sg.shPct))}
                         midBg={colorScaleRedWhiteBlue(shotMapKpis.sg.pdo, 90, 100, 110)}
+                        className="flex-1"
                       />
                     </>
                   ) : null}
