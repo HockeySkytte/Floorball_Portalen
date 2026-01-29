@@ -53,9 +53,6 @@ type StatsPlayerSummary = {
 
 type ShotKind = "GOAL" | "SHOT" | "MISS" | "BLOCK" | "PENALTY";
 
-type HeatMode = "zones" | "counts" | "diff";
-type HeatMetric = "corsi" | "fenwick" | "shots" | "goals" | "shpct";
-
 type ZonesGeoJson = {
   type: "FeatureCollection";
   features: ZoneFeature[];
@@ -156,18 +153,76 @@ function colorScaleRedWhiteBlue(value: number, low: number, mid: number, high: n
   return rgbCss(mixRgb(white, blue, t));
 }
 
-function colorScaleWhiteGreen(value: number, low: number, mid: number, high: number) {
-  const white = hexToRgb("#ffffff");
-  const green = hexToRgb("#10b981");
-  const darkGreen = hexToRgb("#047857");
+type ShotMapKpis = {
+  corsi: { ca: number; cfPct: number; cf: number };
+  fenwick: { fa: number; ffPct: number; ff: number };
+  shots: { sa: number; sfPct: number; sf: number };
+  goals: { ga: number; gfPct: number; gf: number };
+  sg: { svPct: number; pdo: number; shPct: number };
+};
 
-  if (!Number.isFinite(value)) return rgbCss(white);
-  if (value <= mid) {
-    const t = (value - low) / Math.max(1e-9, mid - low);
-    return rgbCss(mixRgb(white, green, t));
+function computeShotMapKpis(events: StatsEvent[], selectedTeam: string): ShotMapKpis {
+  const sel = String(selectedTeam ?? "").trim();
+  const isFor = (e: StatsEvent) => String(e.teamName ?? "").trim() === sel;
+
+  let corsiFor = 0;
+  let corsiAgainst = 0;
+  let fenwickFor = 0;
+  let fenwickAgainst = 0;
+  let shotsFor = 0;
+  let shotsAgainst = 0;
+  let goalsFor = 0;
+  let goalsAgainst = 0;
+
+  for (const e of events) {
+    const kind = classifyShotKind(e.event);
+    if (kind === "PENALTY") continue;
+    const forTeam = isFor(e);
+
+    const isCorsi = kind === "GOAL" || kind === "SHOT" || kind === "MISS" || kind === "BLOCK";
+    const isFenwick = kind === "GOAL" || kind === "SHOT" || kind === "MISS";
+    const isShotOnGoal = kind === "GOAL" || kind === "SHOT";
+    const isGoal = kind === "GOAL";
+
+    if (isCorsi) {
+      if (forTeam) corsiFor++;
+      else corsiAgainst++;
+    }
+    if (isFenwick) {
+      if (forTeam) fenwickFor++;
+      else fenwickAgainst++;
+    }
+    if (isShotOnGoal) {
+      if (forTeam) shotsFor++;
+      else shotsAgainst++;
+    }
+    if (isGoal) {
+      if (forTeam) goalsFor++;
+      else goalsAgainst++;
+    }
   }
-  const t = (value - mid) / Math.max(1e-9, high - mid);
-  return rgbCss(mixRgb(green, darkGreen, t));
+
+  const pctShare = (f: number, a: number) => {
+    const den = f + a;
+    return den > 0 ? (f / den) * 100 : 0;
+  };
+
+  const cfPct = pctShare(corsiFor, corsiAgainst);
+  const ffPct = pctShare(fenwickFor, fenwickAgainst);
+  const sfPct = pctShare(shotsFor, shotsAgainst);
+  const gfPct = pctShare(goalsFor, goalsAgainst);
+
+  const svPct = shotsAgainst > 0 ? ((shotsAgainst - goalsAgainst) / shotsAgainst) * 100 : 0;
+  const shPct = shotsFor > 0 ? (goalsFor / shotsFor) * 100 : 0;
+  const pdo = svPct + shPct;
+
+  return {
+    corsi: { ca: corsiAgainst, cfPct, cf: corsiFor },
+    fenwick: { fa: fenwickAgainst, ffPct, ff: fenwickFor },
+    shots: { sa: shotsAgainst, sfPct, sf: shotsFor },
+    goals: { ga: goalsAgainst, gfPct, gf: goalsFor },
+    sg: { svPct, pdo, shPct },
+  };
 }
 
 function pct(n: number) {
@@ -368,7 +423,7 @@ function HalfRink({
     }
 
     return out;
-  }, [events, half, selected]);
+  }, [events, half, selected, flipByPeriod, teamColors]);
 
   return (
     <div className="space-y-2">
@@ -397,11 +452,17 @@ function HeatHalfRink({
   half,
   zones,
   fillByZoneId,
+  labelByZoneId,
+  selectedZoneCode,
+  onSelectZone,
 }: {
   title: string;
   half: "left" | "right";
   zones: ZoneFeature[];
   fillByZoneId: Map<string, string>;
+  labelByZoneId: Map<string, number>;
+  selectedZoneCode: string | null;
+  onSelectZone: (zoneId: string) => void;
 }) {
   const side: "O" | "D" = half === "right" ? "O" : "D";
 
@@ -432,13 +493,18 @@ function HeatHalfRink({
 
           <svg className="absolute inset-0 h-full w-full" viewBox="0 0 100 100" preserveAspectRatio="none">
             {paths.map((p) => (
-              <g key={p.id}>
+              <g key={p.id} className="cursor-pointer">
                 <path
                   d={p.d}
                   fill={fillByZoneId.get(p.id) ?? "transparent"}
-                  stroke="rgba(255,255,255,.25)"
-                  strokeWidth={0.6}
+                  stroke={
+                    selectedZoneCode && p.id.slice(1) === selectedZoneCode
+                      ? "rgba(250,204,21,.95)"
+                      : "rgba(255,255,255,.25)"
+                  }
+                  strokeWidth={selectedZoneCode && p.id.slice(1) === selectedZoneCode ? 1.4 : 0.6}
                   vectorEffect="non-scaling-stroke"
+                  onClick={() => onSelectZone(p.id)}
                 />
                 <text
                   x={p.cx}
@@ -446,10 +512,10 @@ function HeatHalfRink({
                   textAnchor="middle"
                   dominantBaseline="middle"
                   fill="rgba(0,0,0,.55)"
-                  fontSize={4}
+                  fontSize={5}
                   style={{ pointerEvents: "none" }}
                 >
-                  {p.id}
+                  {String(labelByZoneId.get(p.id) ?? 0)}
                 </text>
               </g>
             ))}
@@ -463,8 +529,7 @@ function HeatHalfRink({
 export default function StatistikClient({ isLeader }: { isLeader: boolean }) {
   const [tab, setTab] = useState<TabKey>("events");
 
-  const [heatMode, setHeatMode] = useState<HeatMode>("zones");
-  const [heatMetric, setHeatMetric] = useState<HeatMetric>("corsi");
+  const [selectedZoneCode, setSelectedZoneCode] = useState<string | null>(null);
   const [zones, setZones] = useState<ZoneFeature[] | null>(null);
   const [zonesError, setZonesError] = useState<string | null>(null);
 
@@ -758,86 +823,21 @@ export default function StatistikClient({ isLeader }: { isLeader: boolean }) {
   const shotMapKpis = useMemo(() => {
     const selectedTeam = String(filters.perspektiv ?? "").trim();
     if (!selectedTeam) return null;
-
-    const isFor = (e: StatsEvent) => String(e.teamName ?? "").trim() === selectedTeam;
-
-    let corsiFor = 0;
-    let corsiAgainst = 0;
-    let fenwickFor = 0;
-    let fenwickAgainst = 0;
-    let shotsFor = 0;
-    let shotsAgainst = 0;
-    let goalsFor = 0;
-    let goalsAgainst = 0;
-
-    for (const e of shotMapEvents) {
-      const kind = classifyShotKind(e.event);
-      if (kind === "PENALTY") continue;
-      const forTeam = isFor(e);
-
-      const isCorsi = kind === "GOAL" || kind === "SHOT" || kind === "MISS" || kind === "BLOCK";
-      const isFenwick = kind === "GOAL" || kind === "SHOT" || kind === "MISS";
-      const isShotOnGoal = kind === "GOAL" || kind === "SHOT";
-      const isGoal = kind === "GOAL";
-
-      if (isCorsi) {
-        if (forTeam) corsiFor++;
-        else corsiAgainst++;
-      }
-      if (isFenwick) {
-        if (forTeam) fenwickFor++;
-        else fenwickAgainst++;
-      }
-      if (isShotOnGoal) {
-        if (forTeam) shotsFor++;
-        else shotsAgainst++;
-      }
-      if (isGoal) {
-        if (forTeam) goalsFor++;
-        else goalsAgainst++;
-      }
-    }
-
-    const pctShare = (f: number, a: number) => {
-      const den = f + a;
-      return den > 0 ? (f / den) * 100 : 0;
-    };
-
-    const cfPct = pctShare(corsiFor, corsiAgainst);
-    const ffPct = pctShare(fenwickFor, fenwickAgainst);
-    const sfPct = pctShare(shotsFor, shotsAgainst);
-    const gfPct = pctShare(goalsFor, goalsAgainst);
-
-    const svPct = shotsAgainst > 0 ? ((shotsAgainst - goalsAgainst) / shotsAgainst) * 100 : 0;
-    const shPct = shotsFor > 0 ? (goalsFor / shotsFor) * 100 : 0;
-    const pdo = svPct + shPct;
-
-    return {
-      corsi: { ca: corsiAgainst, cfPct, cf: corsiFor },
-      fenwick: { fa: fenwickAgainst, ffPct, ff: fenwickFor },
-      shots: { sa: shotsAgainst, sfPct, sf: shotsFor },
-      goals: { ga: goalsAgainst, gfPct, gf: goalsFor },
-      sg: { svPct, pdo, shPct },
-    };
+    return computeShotMapKpis(shotMapEvents, selectedTeam);
   }, [shotMapEvents, filters.perspektiv]);
 
-  const heatFillByZoneId = useMemo(() => {
+  const heatmap = useMemo(() => {
     const selectedTeam = String(filters.perspektiv ?? "").trim();
-    if (!selectedTeam || !zones) return new Map<string, string>();
+    if (!selectedTeam || !zones) {
+      return {
+        fillByZoneId: new Map<string, string>(),
+        labelByZoneId: new Map<string, number>(),
+        zoneIdByEventId: new Map<string, string | null>(),
+      };
+    }
 
     const zonesO = zones.filter((z) => z.properties.side === "O");
     const zonesD = zones.filter((z) => z.properties.side === "D");
-
-    type Counts = { corsi: number; fenwick: number; shots: number; goals: number };
-    type ZoneAgg = { f: Counts; a: Counts };
-
-    const initCounts = (): Counts => ({ corsi: 0, fenwick: 0, shots: 0, goals: 0 });
-    const agg = new Map<string, ZoneAgg>();
-    for (const z of zones) {
-      agg.set(z.properties.id, { f: initCounts(), a: initCounts() });
-    }
-
-    const isFor = (e: StatsEvent) => String(e.teamName ?? "").trim() === selectedTeam;
 
     const findZone = (x: number, y: number) => {
       const pool = x >= 0 ? zonesO : zonesD;
@@ -849,116 +849,87 @@ export default function StatistikClient({ isLeader }: { isLeader: boolean }) {
       return null;
     };
 
+    const isFor = (e: StatsEvent) => String(e.teamName ?? "").trim() === selectedTeam;
+
+    const zoneIdByEventId = new Map<string, string | null>();
+    const forByZoneId = new Map<string, number>();
+    const againstByZoneId = new Map<string, number>();
+    for (const z of zones) {
+      forByZoneId.set(z.properties.id, 0);
+      againstByZoneId.set(z.properties.id, 0);
+    }
+
     for (const e of shotMapEvents) {
       const kind = classifyShotKind(e.event);
-      if (kind === "PENALTY") continue;
-      if (!isFiniteNumber(e.xM) || !isFiniteNumber(e.yM)) continue;
+      if (kind === "PENALTY") {
+        zoneIdByEventId.set(e.id, null);
+        continue;
+      }
+      if (!isFiniteNumber(e.xM) || !isFiniteNumber(e.yM)) {
+        zoneIdByEventId.set(e.id, null);
+        continue;
+      }
 
       const periodKey = e.period ?? 0;
       const flip = shotMapFlipByPeriod.get(periodKey) ?? false;
       const xAdj = flip ? -e.xM : e.xM;
       const yAdj = flip ? -e.yM : e.yM;
-
       const zoneId = findZone(xAdj, yAdj);
+
+      zoneIdByEventId.set(e.id, zoneId);
       if (!zoneId) continue;
 
-      const row = agg.get(zoneId);
-      if (!row) continue;
-
-      const bucket = isFor(e) ? row.f : row.a;
-      const isCorsi = kind === "GOAL" || kind === "SHOT" || kind === "MISS" || kind === "BLOCK";
-      const isFenwick = kind === "GOAL" || kind === "SHOT" || kind === "MISS";
-      const isShotOnGoal = kind === "GOAL" || kind === "SHOT";
-      const isGoal = kind === "GOAL";
-      if (isCorsi) bucket.corsi++;
-      if (isFenwick) bucket.fenwick++;
-      if (isShotOnGoal) bucket.shots++;
-      if (isGoal) bucket.goals++;
-    }
-
-    // Compute raw values per zone
-    const raw = new Map<string, number>();
-    for (const [id, v] of agg.entries()) {
-      const f = v.f;
-      const a = v.a;
-
-      const getCount = (c: Counts, m: HeatMetric) => {
-        switch (m) {
-          case "corsi":
-            return c.corsi;
-          case "fenwick":
-            return c.fenwick;
-          case "shots":
-            return c.shots;
-          case "goals":
-            return c.goals;
-          case "shpct":
-          default:
-            return c.shots;
-        }
-      };
-
-      if (heatMode === "counts") {
-        if (heatMetric === "shpct") {
-          const den = f.shots;
-          raw.set(id, den > 0 ? (f.goals / den) * 100 : 0);
-        } else {
-          raw.set(id, getCount(f, heatMetric));
-        }
-        continue;
-      }
-
-      if (heatMode === "diff") {
-        raw.set(id, getCount(f, heatMetric) - getCount(a, heatMetric));
-        continue;
-      }
-
-      // zones: share% (or Sh%)
-      if (heatMetric === "shpct") {
-        const den = f.shots;
-        raw.set(id, den > 0 ? (f.goals / den) * 100 : 0);
+      if (isFor(e)) {
+        forByZoneId.set(zoneId, (forByZoneId.get(zoneId) ?? 0) + 1);
       } else {
-        const fCount = getCount(f, heatMetric);
-        const aCount = getCount(a, heatMetric);
-        const den = fCount + aCount;
-        raw.set(id, den > 0 ? (fCount / den) * 100 : 0);
+        againstByZoneId.set(zoneId, (againstByZoneId.get(zoneId) ?? 0) + 1);
       }
     }
 
-    // Scale to colors
-    const values = [...raw.values()].filter((n) => Number.isFinite(n));
+    // Display rule:
+    // - Offensive end (Oxx): show Events For
+    // - Defensive end (Dxx): show Events Against
+    const labelByZoneId = new Map<string, number>();
+    for (const z of zones) {
+      const id = z.properties.id;
+      const display = id.startsWith("O")
+        ? (forByZoneId.get(id) ?? 0)
+        : (againstByZoneId.get(id) ?? 0);
+      labelByZoneId.set(id, display);
+    }
+
+    const values = [...labelByZoneId.values()].filter((n) => Number.isFinite(n));
     const max = values.length ? Math.max(...values) : 0;
-    const min = values.length ? Math.min(...values) : 0;
-    const maxAbs = values.length ? Math.max(Math.abs(min), Math.abs(max)) : 0;
 
-    const fill = new Map<string, string>();
-    for (const [id, v] of raw.entries()) {
-      if (heatMode === "counts") {
-        if (heatMetric === "shpct") {
-          fill.set(id, colorScaleWhiteGreen(v, 0, 10, 30));
-        } else {
-          const a = max > 0 ? 0.15 + 0.75 * clamp01(v / max) : 0;
-          fill.set(id, `rgba(59,130,246,${a.toFixed(3)})`);
-        }
-        continue;
-      }
-
-      if (heatMode === "diff") {
-        const pctVal = maxAbs > 0 ? 50 + (v / maxAbs) * 50 : 50;
-        fill.set(id, colorScaleRedWhiteBlue(pctVal, 0, 50, 100));
-        continue;
-      }
-
-      // zones
-      if (heatMetric === "shpct") {
-        fill.set(id, colorScaleWhiteGreen(v, 0, 10, 30));
-      } else {
-        fill.set(id, colorScaleRedWhiteBlue(v, 20, 50, 80));
-      }
+    const fillByZoneId = new Map<string, string>();
+    for (const [id, v] of labelByZoneId.entries()) {
+      const a = max > 0 ? 0.12 + 0.78 * clamp01(v / max) : 0;
+      fillByZoneId.set(id, `rgba(239,68,68,${a.toFixed(3)})`);
     }
 
-    return fill;
-  }, [filters.perspektiv, zones, shotMapEvents, shotMapFlipByPeriod, heatMode, heatMetric]);
+    return { fillByZoneId, labelByZoneId, zoneIdByEventId };
+  }, [filters.perspektiv, zones, shotMapEvents, shotMapFlipByPeriod]);
+
+  const heatmapSelectedEvents = useMemo(() => {
+    if (!selectedZoneCode) return shotMapEvents;
+    const allow = new Set([`O${selectedZoneCode}`, `D${selectedZoneCode}`]);
+    return shotMapEvents.filter((e) => {
+      const zoneId = heatmap.zoneIdByEventId.get(e.id) ?? null;
+      return zoneId ? allow.has(zoneId) : false;
+    });
+  }, [shotMapEvents, heatmap.zoneIdByEventId, selectedZoneCode]);
+
+  const heatmapKpis = useMemo(() => {
+    const selectedTeam = String(filters.perspektiv ?? "").trim();
+    if (!selectedTeam) return null;
+    return computeShotMapKpis(heatmapSelectedEvents, selectedTeam);
+  }, [heatmapSelectedEvents, filters.perspektiv]);
+
+  function onSelectZone(zoneId: string) {
+    const code = String(zoneId ?? "").slice(1);
+    if (!code) return;
+    setSelectedZoneCode((cur) => (cur === code ? null : code));
+  }
 
   return (
     <div className="space-y-6">
@@ -1322,65 +1293,44 @@ export default function StatistikClient({ isLeader }: { isLeader: boolean }) {
               <p className="mt-4 text-sm text-zinc-600">Indlæser zoner…</p>
             ) : (
               <>
-                <div className="flex flex-wrap items-center justify-center gap-2">
-                  {([
-                    { key: "zones" as const, label: "Zones" },
-                    { key: "counts" as const, label: "Counts" },
-                    { key: "diff" as const, label: "Differentials" },
-                  ] satisfies Array<{ key: HeatMode; label: string }>).map((m) => (
+                <div className="flex items-center justify-between gap-3">
+                  <div className="text-sm text-zinc-700">
+                    Offensive end viser <span className="font-semibold">Events For</span>. Defensive end viser <span className="font-semibold">Events Imod</span>.
+                  </div>
+                  {selectedZoneCode ? (
                     <button
-                      key={m.key}
                       type="button"
-                      onClick={() => setHeatMode(m.key)}
-                      className={
-                        heatMode === m.key
-                          ? "rounded-md bg-[var(--brand)] px-3 py-1.5 text-sm font-medium text-[var(--brand-foreground)]"
-                          : "rounded-md border border-[color:var(--surface-border)] bg-transparent px-3 py-1.5 text-sm"
-                      }
+                      onClick={() => setSelectedZoneCode(null)}
+                      className="rounded-md border border-[color:var(--surface-border)] bg-transparent px-3 py-1.5 text-sm"
                     >
-                      {m.label}
+                      Ryd zone (O{selectedZoneCode}/D{selectedZoneCode})
                     </button>
-                  ))}
-                </div>
-
-                <div className="mt-3 flex flex-wrap items-center justify-center gap-2">
-                  {([
-                    { key: "corsi" as const, label: "Corsi" },
-                    { key: "fenwick" as const, label: "Fenwick" },
-                    { key: "shots" as const, label: "Shots" },
-                    { key: "goals" as const, label: "Goals" },
-                    { key: "shpct" as const, label: "Sh%" },
-                  ] satisfies Array<{ key: HeatMetric; label: string }>).map((m) => (
-                    <button
-                      key={m.key}
-                      type="button"
-                      onClick={() => setHeatMetric(m.key)}
-                      className={
-                        heatMetric === m.key
-                          ? "rounded-md bg-[var(--brand)] px-3 py-1.5 text-sm font-medium text-[var(--brand-foreground)]"
-                          : "rounded-md border border-[color:var(--surface-border)] bg-transparent px-3 py-1.5 text-sm"
-                      }
-                    >
-                      {m.label}
-                    </button>
-                  ))}
+                  ) : null}
                 </div>
 
                 <div className="mt-4 grid gap-2 md:grid-cols-[minmax(0,1fr)_180px_minmax(0,1fr)] md:items-stretch">
-                  <HeatHalfRink title="Defensive End" half="left" zones={zones} fillByZoneId={heatFillByZoneId} />
+                  <HeatHalfRink
+                    title="Defensive End"
+                    half="left"
+                    zones={zones}
+                    fillByZoneId={heatmap.fillByZoneId}
+                    labelByZoneId={heatmap.labelByZoneId}
+                    selectedZoneCode={selectedZoneCode}
+                    onSelectZone={onSelectZone}
+                  />
 
                   <div className="flex h-full flex-col justify-between gap-2">
-                    {shotMapKpis ? (
+                    {heatmapKpis ? (
                       <>
                         <KpiCard
                           title="Corsi"
                           leftLabel="CA"
                           midLabel="CF%"
                           rightLabel="CF"
-                          leftValue={String(shotMapKpis.corsi.ca)}
-                          midValue={String(pct(shotMapKpis.corsi.cfPct))}
-                          rightValue={String(shotMapKpis.corsi.cf)}
-                          midBg={colorScaleRedWhiteBlue(shotMapKpis.corsi.cfPct, 20, 50, 80)}
+                          leftValue={String(heatmapKpis.corsi.ca)}
+                          midValue={String(pct(heatmapKpis.corsi.cfPct))}
+                          rightValue={String(heatmapKpis.corsi.cf)}
+                          midBg={colorScaleRedWhiteBlue(heatmapKpis.corsi.cfPct, 20, 50, 80)}
                           className="flex-1"
                         />
                         <KpiCard
@@ -1388,10 +1338,10 @@ export default function StatistikClient({ isLeader }: { isLeader: boolean }) {
                           leftLabel="FA"
                           midLabel="FF%"
                           rightLabel="FF"
-                          leftValue={String(shotMapKpis.fenwick.fa)}
-                          midValue={String(pct(shotMapKpis.fenwick.ffPct))}
-                          rightValue={String(shotMapKpis.fenwick.ff)}
-                          midBg={colorScaleRedWhiteBlue(shotMapKpis.fenwick.ffPct, 20, 50, 80)}
+                          leftValue={String(heatmapKpis.fenwick.fa)}
+                          midValue={String(pct(heatmapKpis.fenwick.ffPct))}
+                          rightValue={String(heatmapKpis.fenwick.ff)}
+                          midBg={colorScaleRedWhiteBlue(heatmapKpis.fenwick.ffPct, 20, 50, 80)}
                           className="flex-1"
                         />
                         <KpiCard
@@ -1399,10 +1349,10 @@ export default function StatistikClient({ isLeader }: { isLeader: boolean }) {
                           leftLabel="SA"
                           midLabel="SF%"
                           rightLabel="SF"
-                          leftValue={String(shotMapKpis.shots.sa)}
-                          midValue={String(pct(shotMapKpis.shots.sfPct))}
-                          rightValue={String(shotMapKpis.shots.sf)}
-                          midBg={colorScaleRedWhiteBlue(shotMapKpis.shots.sfPct, 20, 50, 80)}
+                          leftValue={String(heatmapKpis.shots.sa)}
+                          midValue={String(pct(heatmapKpis.shots.sfPct))}
+                          rightValue={String(heatmapKpis.shots.sf)}
+                          midBg={colorScaleRedWhiteBlue(heatmapKpis.shots.sfPct, 20, 50, 80)}
                           className="flex-1"
                         />
                         <KpiCard
@@ -1410,10 +1360,10 @@ export default function StatistikClient({ isLeader }: { isLeader: boolean }) {
                           leftLabel="GA"
                           midLabel="GF%"
                           rightLabel="GF"
-                          leftValue={String(shotMapKpis.goals.ga)}
-                          midValue={String(pct(shotMapKpis.goals.gfPct))}
-                          rightValue={String(shotMapKpis.goals.gf)}
-                          midBg={colorScaleRedWhiteBlue(shotMapKpis.goals.gfPct, 20, 50, 80)}
+                          leftValue={String(heatmapKpis.goals.ga)}
+                          midValue={String(pct(heatmapKpis.goals.gfPct))}
+                          rightValue={String(heatmapKpis.goals.gf)}
+                          midBg={colorScaleRedWhiteBlue(heatmapKpis.goals.gfPct, 20, 50, 80)}
                           className="flex-1"
                         />
                         <KpiCard
@@ -1421,17 +1371,25 @@ export default function StatistikClient({ isLeader }: { isLeader: boolean }) {
                           leftLabel="Sv%"
                           midLabel="PDO"
                           rightLabel="Sh%"
-                          leftValue={String(pct(shotMapKpis.sg.svPct))}
-                          midValue={String(pct(shotMapKpis.sg.pdo))}
-                          rightValue={String(pct(shotMapKpis.sg.shPct))}
-                          midBg={colorScaleRedWhiteBlue(shotMapKpis.sg.pdo, 90, 100, 110)}
+                          leftValue={String(pct(heatmapKpis.sg.svPct))}
+                          midValue={String(pct(heatmapKpis.sg.pdo))}
+                          rightValue={String(pct(heatmapKpis.sg.shPct))}
+                          midBg={colorScaleRedWhiteBlue(heatmapKpis.sg.pdo, 90, 100, 110)}
                           className="flex-1"
                         />
                       </>
                     ) : null}
                   </div>
 
-                  <HeatHalfRink title="Offensive End" half="right" zones={zones} fillByZoneId={heatFillByZoneId} />
+                  <HeatHalfRink
+                    title="Offensive End"
+                    half="right"
+                    zones={zones}
+                    fillByZoneId={heatmap.fillByZoneId}
+                    labelByZoneId={heatmap.labelByZoneId}
+                    selectedZoneCode={selectedZoneCode}
+                    onSelectZone={onSelectZone}
+                  />
                 </div>
               </>
             )}

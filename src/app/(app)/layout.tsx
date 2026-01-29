@@ -42,20 +42,20 @@ export default async function AppLayout({
 
   return (
     <StatsFiltersProvider>
-      <div className="grid min-h-dvh w-full grid-cols-1 md:grid-cols-[320px_1fr]">
+      <div className="grid min-h-dvh w-full grid-cols-1 md:grid-cols-[280px_1fr]">
         {/* Desktop: left slicer pane */}
-        <aside className="hidden min-h-dvh flex-col bg-[image:var(--sidebar-gradient)] bg-cover bg-no-repeat p-6 text-[var(--brand-foreground)] md:flex">
+        <aside className="hidden min-h-dvh flex-col bg-[image:var(--sidebar-gradient)] bg-cover bg-no-repeat p-4 text-[var(--brand-foreground)] md:flex">
           <Link className="flex items-center gap-3 text-xl font-semibold tracking-tight" href="/statistik">
             {selectedTeamLogoUrl ? (
               <img
                 src={selectedTeamLogoUrl}
                 alt="Logo"
-                className="h-9 w-9 rounded-md bg-white/90 object-contain p-1"
+                className="h-9 w-9 rounded-md object-contain"
               />
             ) : null}
             <span>Floorball</span>
           </Link>
-          <div className="mt-6">
+          <div className="mt-4">
             <TeamSlicer
               isAdmin={isAdmin}
               teams={teams}

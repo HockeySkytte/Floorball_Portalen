@@ -142,11 +142,11 @@ export default function StatsSidebarSlicers() {
   if (!show) return null;
 
   return (
-    <div className="mt-6 space-y-3">
-      <label className="block text-sm">
-        <div className="mb-1 font-medium">Perspektiv</div>
+    <div className="mt-4 space-y-2.5">
+      <label className="block text-xs">
+        <div className="mb-0.5 font-medium">Perspektiv</div>
         <select
-          className="w-full rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm text-zinc-900 disabled:opacity-70"
+          className="w-full rounded-md border border-zinc-300 bg-white px-2 py-1.5 text-xs text-zinc-900 disabled:opacity-70"
           value={filters.perspektiv}
           disabled={options.perspectives.length === 0}
           onChange={(e) => setPerspektiv(e.target.value)}
@@ -159,10 +159,10 @@ export default function StatsSidebarSlicers() {
         </select>
       </label>
 
-      <label className="block text-sm">
-        <div className="mb-1 font-medium">Kamp</div>
+      <label className="block text-xs">
+        <div className="mb-0.5 font-medium">Kamp</div>
         <select
-          className="w-full rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm text-zinc-900 disabled:opacity-70"
+          className="w-full rounded-md border border-zinc-300 bg-white px-2 py-1.5 text-xs text-zinc-900 disabled:opacity-70"
           value={filters.kamp}
           onChange={(e) => setKamp(e.target.value)}
         >
@@ -175,10 +175,10 @@ export default function StatsSidebarSlicers() {
         </select>
       </label>
 
-      <label className="block text-sm">
-        <div className="mb-1 font-medium">Styrkeforhold</div>
+      <label className="block text-xs">
+        <div className="mb-0.5 font-medium">Styrkeforhold</div>
         <select
-          className="w-full rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm text-zinc-900 disabled:opacity-70"
+          className="w-full rounded-md border border-zinc-300 bg-white px-2 py-1.5 text-xs text-zinc-900 disabled:opacity-70"
           value={filters.styrke}
           onChange={(e) => setStyrke(e.target.value)}
         >
@@ -191,10 +191,10 @@ export default function StatsSidebarSlicers() {
         </select>
       </label>
 
-      <label className="block text-sm">
-        <div className="mb-1 font-medium">Spiller</div>
+      <label className="block text-xs">
+        <div className="mb-0.5 font-medium">Spiller</div>
         <select
-          className="w-full rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm text-zinc-900 disabled:opacity-70"
+          className="w-full rounded-md border border-zinc-300 bg-white px-2 py-1.5 text-xs text-zinc-900 disabled:opacity-70"
           value={filters.spiller}
           onChange={(e) => setSpiller(e.target.value)}
         >
@@ -207,10 +207,10 @@ export default function StatsSidebarSlicers() {
         </select>
       </label>
 
-      <label className="block text-sm">
-        <div className="mb-1 font-medium">Målmand</div>
+      <label className="block text-xs">
+        <div className="mb-0.5 font-medium">Målmand</div>
         <select
-          className="w-full rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm text-zinc-900 disabled:opacity-70"
+          className="w-full rounded-md border border-zinc-300 bg-white px-2 py-1.5 text-xs text-zinc-900 disabled:opacity-70"
           value={filters.maalmand}
           onChange={(e) => setMaalmand(e.target.value)}
         >
@@ -223,11 +223,11 @@ export default function StatsSidebarSlicers() {
         </select>
       </label>
 
-      <label className="block text-sm">
-        <div className="mb-1 font-medium">På Banen</div>
+      <label className="block text-xs">
+        <div className="mb-0.5 font-medium">På Banen</div>
         <select
           multiple
-          className="h-40 w-full rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm text-zinc-900"
+          className="h-32 w-full rounded-md border border-zinc-300 bg-white px-2 py-1 text-xs text-zinc-900"
           value={filters.paaBanen}
           onChange={(e) => {
             const values = Array.from(e.currentTarget.selectedOptions).map((o) => o.value);

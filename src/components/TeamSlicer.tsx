@@ -36,10 +36,10 @@ export default function TeamSlicer({
   }
 
   return (
-    <div className="space-y-2">
-      <div className="text-sm font-semibold">Hold</div>
+    <div className="space-y-1.5">
+      <div className="text-xs font-semibold">Hold</div>
       <select
-        className="w-full rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm text-zinc-900 disabled:opacity-70"
+        className="w-full rounded-md border border-zinc-300 bg-white px-2 py-1.5 text-xs text-zinc-900 disabled:opacity-70"
         style={{ colorScheme: "light" }}
         value={value}
         disabled={disabled}

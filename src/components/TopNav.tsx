@@ -22,8 +22,21 @@ export default function TopNav({
 
   return (
     <header className="border-b border-[color:var(--brand)] bg-[color:var(--topbar-bg)] text-[color:var(--topbar-foreground)]">
-      <div className="flex w-full items-center justify-between px-4 py-3">
+      <div className="flex w-full items-center justify-between px-4 py-2">
         <div className="flex items-center gap-4">
+          {logoUrl ? (
+            <Link href="/statistik" className="shrink-0">
+              <img
+                src={logoUrl}
+                alt="Logo"
+                className="h-16 w-16 object-contain"
+                onError={(e) => {
+                  (e.currentTarget as HTMLImageElement).style.display = "none";
+                }}
+              />
+            </Link>
+          ) : null}
+
           {/* Desktop navigation */}
           <nav className="hidden items-center gap-5 text-base sm:flex">
             <Link className="hover:underline" href="/statistik">
@@ -117,17 +130,6 @@ export default function TopNav({
         </div>
 
         <div className="flex items-center gap-3 text-base">
-          {logoUrl ? (
-            <img
-              src={logoUrl}
-              alt="Logo"
-              className="h-12 w-12 shrink-0 object-contain"
-              onError={(e) => {
-                (e.currentTarget as HTMLImageElement).style.display = "none";
-              }}
-            />
-          ) : null}
-
           {user ? (
             <details className="relative">
               <summary className="cursor-pointer list-none font-medium select-none">
