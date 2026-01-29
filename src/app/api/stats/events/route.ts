@@ -37,6 +37,8 @@ export async function GET(req: Request) {
       p2Name: true,
       xM: true,
       yM: true,
+      videoUrl: true,
+      videoTime: true,
       gameId: true,
       gameDate: true,
       competition: true,

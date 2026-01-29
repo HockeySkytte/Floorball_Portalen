@@ -430,6 +430,43 @@ function formatSeconds(total: number) {
   return `${m}:${String(s).padStart(2, "0")}`;
 }
 
+let youTubeIframeApiPromise: Promise<void> | null = null;
+function loadYouTubeIframeApi(): Promise<void> {
+  if (typeof window === "undefined") return Promise.resolve();
+  if ((window as any).YT?.Player) return Promise.resolve();
+  if (youTubeIframeApiPromise) return youTubeIframeApiPromise;
+
+  youTubeIframeApiPromise = new Promise<void>((resolve) => {
+    const prev = (window as any).onYouTubeIframeAPIReady;
+    (window as any).onYouTubeIframeAPIReady = () => {
+      try {
+        if (typeof prev === "function") prev();
+      } finally {
+        resolve();
+      }
+    };
+
+    const existing = document.querySelector(
+      'script[src="https://www.youtube.com/iframe_api"]'
+    ) as HTMLScriptElement | null;
+    if (existing) return;
+
+    const tag = document.createElement("script");
+    tag.src = "https://www.youtube.com/iframe_api";
+    document.head.appendChild(tag);
+  });
+
+  return youTubeIframeApiPromise;
+}
+
+function getEventPlayerName(e: StatsEvent) {
+  const p1 = String(e.p1Name ?? "").trim();
+  if (p1) return p1;
+  const p2 = String(e.p2Name ?? "").trim();
+  if (p2) return p2;
+  return "-";
+}
+
 function VideoSection({
   title,
   events,
@@ -441,7 +478,15 @@ function VideoSection({
   const [afterSec, setAfterSec] = useState<number>(5);
   const [selectedIndex, setSelectedIndex] = useState<number | null>(null);
   const [playAll, setPlayAll] = useState(false);
-  const timerRef = useRef<number | null>(null);
+  const [apiReady, setApiReady] = useState(false);
+  const playerHostRef = useRef<HTMLDivElement | null>(null);
+  const playerRef = useRef<any>(null);
+  const playerReadyRef = useRef(false);
+  const pendingRef = useRef<{
+    ytId: string;
+    start: number;
+    end: number;
+  } | null>(null);
 
   const rows = useMemo(() => {
     return events.map((e) => {
@@ -471,57 +516,117 @@ function VideoSection({
   }
 
   const selectedRow = selectedIndex !== null ? rows[selectedIndex] ?? null : null;
-  const embedSrc = useMemo(() => {
-    if (!selectedRow?.playable) return null;
-    const id = selectedRow.ytId!;
-    const start = selectedRow.start ?? 0;
-    const end = selectedRow.end ?? Math.max(0, start + 1);
-    const params = new URLSearchParams({
-      start: String(start),
-      end: String(end),
-      autoplay: "1",
-      rel: "0",
-      modestbranding: "1",
-      playsinline: "1",
-      controls: "1",
-    });
-    return `https://www.youtube.com/embed/${id}?${params.toString()}`;
-  }, [selectedRow]);
-
   useEffect(() => {
+    let cancelled = false;
+    loadYouTubeIframeApi().then(() => {
+      if (cancelled) return;
+      setApiReady(true);
+    });
     return () => {
-      if (timerRef.current !== null) {
-        window.clearTimeout(timerRef.current);
-        timerRef.current = null;
-      }
+      cancelled = true;
     };
   }, []);
 
   useEffect(() => {
-    if (!playAll) return;
-    if (selectedIndex === null) return;
-    const row = rows[selectedIndex];
-    if (!row?.playable) return;
+    if (!apiReady) return;
 
-    const duration = Math.max(1, (row.end ?? 0) - (row.start ?? 0));
-    if (timerRef.current !== null) window.clearTimeout(timerRef.current);
+    const YT = (window as any).YT;
+    if (!YT?.Player) return;
 
-    timerRef.current = window.setTimeout(() => {
-      const next = findNextPlayableIndex(selectedIndex);
-      if (next === null) {
-        setPlayAll(false);
-        return;
+    const next =
+      selectedRow?.playable
+        ? {
+            ytId: selectedRow.ytId!,
+            start: selectedRow.start ?? 0,
+            end: selectedRow.end ?? Math.max(0, (selectedRow.start ?? 0) + 1),
+          }
+        : null;
+
+    pendingRef.current = next;
+
+    if (!next) {
+      if (playerRef.current) {
+        try {
+          playerRef.current.stopVideo();
+        } catch {
+          // ignore
+        }
       }
-      setSelectedIndex(next);
-    }, duration * 1000 + 250);
+      return;
+    }
 
+    if (!playerRef.current && playerHostRef.current) {
+      playerReadyRef.current = false;
+      playerRef.current = new YT.Player(playerHostRef.current, {
+        videoId: next.ytId,
+        playerVars: {
+          autoplay: 1,
+          start: next.start,
+          end: next.end,
+          rel: 0,
+          modestbranding: 1,
+          playsinline: 1,
+          controls: 1,
+        },
+        events: {
+          onReady: () => {
+            playerReadyRef.current = true;
+            const p = pendingRef.current;
+            if (!p) return;
+            try {
+              playerRef.current?.loadVideoById({
+                videoId: p.ytId,
+                startSeconds: p.start,
+                endSeconds: p.end,
+              });
+            } catch {
+              // ignore
+            }
+          },
+          onStateChange: (ev: any) => {
+            if (ev?.data !== YT.PlayerState?.ENDED) return;
+            if (!playAll) return;
+            setSelectedIndex((curr) => {
+              if (curr === null) return curr;
+              const nextIdx = findNextPlayableIndex(curr);
+              if (nextIdx === null) {
+                setPlayAll(false);
+                return curr;
+              }
+              return nextIdx;
+            });
+          },
+        },
+      });
+      return;
+    }
+
+    if (playerRef.current && playerReadyRef.current) {
+      try {
+        playerRef.current.loadVideoById({
+          videoId: next.ytId,
+          startSeconds: next.start,
+          endSeconds: next.end,
+        });
+      } catch {
+        // ignore
+      }
+    }
+  }, [apiReady, selectedRow, playAll]);
+
+  useEffect(() => {
     return () => {
-      if (timerRef.current !== null) {
-        window.clearTimeout(timerRef.current);
-        timerRef.current = null;
+      if (playerRef.current) {
+        try {
+          playerRef.current.destroy();
+        } catch {
+          // ignore
+        }
+        playerRef.current = null;
+        playerReadyRef.current = false;
       }
     };
-  }, [playAll, selectedIndex, rows]);
+  }, []);
 
   return (
     <div className="space-y-3">
@@ -581,15 +686,8 @@ function VideoSection({
       <div className="grid gap-4 md:grid-cols-[minmax(0,1fr)_minmax(0,1fr)] md:items-start">
         <div className="space-y-2">
           <div className="aspect-video w-full overflow-hidden rounded-md bg-black/90">
-            {embedSrc ? (
-              <iframe
-                key={embedSrc}
-                src={embedSrc}
-                className="h-full w-full"
-                allow="autoplay; encrypted-media"
-                allowFullScreen
-                title="Video"
-              />
+            {selectedRow?.playable ? (
+              <div ref={playerHostRef} className="h-full w-full" />
             ) : (
               <div className="grid h-full w-full place-items-center text-sm text-white/70">Vælg et event med video.</div>
             )}
@@ -601,16 +699,13 @@ function VideoSection({
           ) : null}
         </div>
 
-        <div className="max-h-[380px] overflow-auto rounded-md border border-[color:var(--surface-border)]">
-          <table className="min-w-[700px] w-full border-collapse text-sm">
+        <div className="max-h-[320px] overflow-auto rounded-md border border-[color:var(--surface-border)]">
+          <table className="w-full border-collapse text-sm">
             <thead className="sticky top-0 z-10 bg-[color:var(--surface)]">
               <tr className="border-b border-[color:var(--surface-border)] text-left">
-                <th className="py-2 pl-3 pr-2">#</th>
-                <th className="py-2 pr-2">Per</th>
-                <th className="py-2 pr-2">Event</th>
-                <th className="py-2 pr-2">P1</th>
-                <th className="py-2 pr-2">P2</th>
-                <th className="py-2 pr-3">Video</th>
+                <th className="py-1.5 pl-3 pr-2">Hold</th>
+                <th className="py-1.5 pr-2">Event</th>
+                <th className="py-1.5 pr-3">Spiller</th>
               </tr>
             </thead>
             <tbody>
@@ -630,19 +725,16 @@ function VideoSection({
                       setSelectedIndex(idx);
                     }}
                   >
-                    <td className="py-2 pl-3 pr-2 tabular-nums">{idx + 1}</td>
-                    <td className="py-2 pr-2 tabular-nums">{r.e.period ?? "-"}</td>
-                    <td className="py-2 pr-2 font-medium">{r.e.event}</td>
-                    <td className="py-2 pr-2">{r.e.p1Name ?? ""}</td>
-                    <td className="py-2 pr-2">{r.e.p2Name ?? ""}</td>
-                    <td className="py-2 pr-3 tabular-nums">{r.playable ? formatSeconds(r.t ?? 0) : "-"}</td>
+                    <td className="py-1.5 pl-3 pr-2">{r.e.teamName ?? "-"}</td>
+                    <td className="py-1.5 pr-2 font-medium">{r.e.event}</td>
+                    <td className="py-1.5 pr-3">{getEventPlayerName(r.e)}</td>
                   </tr>
                 );
               })}
 
               {rows.length === 0 ? (
                 <tr>
-                  <td className="px-3 py-3 text-sm text-zinc-600" colSpan={6}>
+                  <td className="px-3 py-3 text-sm text-zinc-600" colSpan={3}>
                     Ingen events.
                   </td>
                 </tr>

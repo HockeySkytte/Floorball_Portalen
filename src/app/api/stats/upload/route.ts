@@ -123,8 +123,8 @@ export async function POST(req: Request) {
           gameId: gameId ?? null,
           gameDate,
           competition: competition ?? null,
-          videoUrl: getValue(row, ["videoUrl", "video"]) ?? null,
-          videoTime: toInt(getValue(row, ["videoTime", "videoSeconds"])) ?? null,
+          videoUrl: getValue(row, ["videoUrl", "video", "video_url", "videoUrlRaw", "videoLink"]) ?? null,
+          videoTime: toInt(getValue(row, ["videoTime", "videoSeconds", "video_time", "videoTimestamp"])) ?? null,
           aimX: toFloat(getValue(row, ["aimX"])) ?? null,
           aimY: toFloat(getValue(row, ["aimY"])) ?? null,
         };
