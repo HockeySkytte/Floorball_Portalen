@@ -11,6 +11,7 @@ type StatsEvent = {
   gameDate?: string | null;
   teamHome?: string | null;
   teamAway?: string | null;
+  strength?: string | null;
   p1Name: string | null;
   p2Name: string | null;
   goalieName?: string | null;
@@ -29,7 +30,7 @@ export default function StatsSidebarSlicers() {
   const pathname = usePathname();
   const show = pathname === "/statistik" || pathname.startsWith("/statistik/");
 
-  const { filters, setPerspektiv, setKamp, setSpiller, setMaalmand, setPaaBanen } =
+  const { filters, setPerspektiv, setKamp, setStyrke, setSpiller, setMaalmand, setPaaBanen } =
     useStatsFilters();
 
   const [events, setEvents] = useState<StatsEvent[]>([]);
@@ -54,6 +55,7 @@ export default function StatsSidebarSlicers() {
 
   const options = useMemo(() => {
     const perspectives = new Set<string>();
+    const strengths = new Set<string>();
     const players = new Set<string>();
     const goalies = new Set<string>();
     const onIce = new Set<string>();
@@ -66,6 +68,8 @@ export default function StatsSidebarSlicers() {
     for (const e of events) {
       if (e.teamName) perspectives.add(e.teamName);
       else if (e.perspective) perspectives.add(e.perspective);
+
+      if (e.strength) strengths.add(e.strength);
 
       if (e.p1Name) players.add(e.p1Name);
       if (e.p2Name) players.add(e.p2Name);
@@ -120,6 +124,7 @@ export default function StatsSidebarSlicers() {
     return {
       perspectives: Array.from(perspectives).sort(sortAlpha),
       games: gamesList,
+      strengths: Array.from(strengths).sort(sortAlpha),
       players: Array.from(players).sort(sortAlpha),
       goalies: Array.from(goalies).sort(sortAlpha),
       onIce: Array.from(onIce).sort(sortAlpha),
@@ -165,6 +170,22 @@ export default function StatsSidebarSlicers() {
           {options.games.map((g) => (
             <option key={g.id} value={g.id}>
               {g.label || g.id}
+            </option>
+          ))}
+        </select>
+      </label>
+
+      <label className="block text-sm">
+        <div className="mb-1 font-medium">Styrkeforhold</div>
+        <select
+          className="w-full rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm text-zinc-900 disabled:opacity-70"
+          value={filters.styrke}
+          onChange={(e) => setStyrke(e.target.value)}
+        >
+          <option value="">Alle</option>
+          {options.strengths.map((v) => (
+            <option key={v} value={v}>
+              {v}
             </option>
           ))}
         </select>

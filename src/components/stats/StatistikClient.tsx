@@ -41,6 +41,16 @@ type StatsEvent = {
 
 type TabKey = "events" | "shotmap" | "heatmap" | "tabeller" | "video";
 
+type StatsPlayerSummary = {
+  id: string;
+  number: number | null;
+  name: string | null;
+  line: string | null;
+  teamName: string | null;
+  teamColor: string | null;
+  gameId: string | null;
+};
+
 type ShotKind = "GOAL" | "SHOT" | "MISS" | "BLOCK" | "PENALTY";
 
 function classifyShotKind(event: string): ShotKind {
@@ -209,20 +219,20 @@ function KpiCard({
   midBg: string;
 }) {
   return (
-    <div className="rounded-md border border-[color:var(--surface-border)] bg-[color:var(--surface)] p-4">
-      <div className="text-center text-lg font-semibold">{title}</div>
-      <div className="mt-3 grid grid-cols-3 gap-2">
-        <div className="rounded-md border border-[color:var(--surface-border)] bg-[color:var(--surface)] p-2 text-center">
+    <div className="rounded-md border border-[color:var(--surface-border)] bg-[color:var(--surface)] px-3 py-2">
+      <div className="text-center text-sm font-semibold">{title}</div>
+      <div className="mt-2 grid grid-cols-3 gap-1.5">
+        <div className="rounded-md border border-[color:var(--surface-border)] bg-[color:var(--surface)] px-2 py-1 text-center">
           <div className="text-xs text-zinc-500">{leftLabel}</div>
-          <div className="mt-1 text-xl font-semibold tabular-nums">{leftValue}</div>
+          <div className="mt-0.5 text-base font-semibold tabular-nums">{leftValue}</div>
         </div>
-        <div className="rounded-md border border-[color:var(--surface-border)] p-2 text-center" style={{ background: midBg }}>
+        <div className="rounded-md border border-[color:var(--surface-border)] px-2 py-1 text-center" style={{ background: midBg }}>
           <div className="text-xs text-zinc-700">{midLabel}</div>
-          <div className="mt-1 text-xl font-semibold tabular-nums text-zinc-900">{midValue}</div>
+          <div className="mt-0.5 text-base font-semibold tabular-nums text-zinc-900">{midValue}</div>
         </div>
-        <div className="rounded-md border border-[color:var(--surface-border)] bg-[color:var(--surface)] p-2 text-center">
+        <div className="rounded-md border border-[color:var(--surface-border)] bg-[color:var(--surface)] px-2 py-1 text-center">
           <div className="text-xs text-zinc-500">{rightLabel}</div>
-          <div className="mt-1 text-xl font-semibold tabular-nums">{rightValue}</div>
+          <div className="mt-0.5 text-base font-semibold tabular-nums">{rightValue}</div>
         </div>
       </div>
     </div>
@@ -235,16 +245,18 @@ function HalfRink({
   events,
   selectedTeam,
   flipByPeriod,
+  teamColors,
 }: {
   title: string;
   half: "left" | "right";
   events: StatsEvent[];
   selectedTeam: string;
   flipByPeriod: Map<number, boolean>;
+  teamColors: Map<string, string>;
 }) {
   const selected = String(selectedTeam ?? "").trim();
-  const offenseColor = "var(--brand)";
-  const defenseColor = "var(--surface-foreground)";
+  const fallbackOffenseColor = "var(--brand)";
+  const fallbackDefenseColor = "var(--surface-foreground)";
 
   const points = useMemo(() => {
     const out: Array<{
@@ -267,12 +279,17 @@ function HalfRink({
       if (!p) continue;
 
       const isOffense = String(e.teamName ?? "").trim() === selected;
+
+      const teamNameKey = String(e.teamName ?? "").trim();
+      const mappedColor = teamNameKey ? teamColors.get(teamNameKey) : undefined;
+      const color = mappedColor ?? (isOffense ? fallbackOffenseColor : fallbackDefenseColor);
+
       out.push({
         id: e.id,
         kind: classifyShotKind(e.event),
         x: p.x,
         y: p.y,
-        color: isOffense ? offenseColor : defenseColor,
+        color,
       });
     }
 
@@ -281,7 +298,7 @@ function HalfRink({
 
   return (
     <div className="space-y-2">
-      <div className="text-sm font-semibold text-zinc-600">{title}</div>
+      <div className="text-center text-sm font-semibold text-zinc-600">{title}</div>
       <div className="relative overflow-hidden rounded-md border border-[color:var(--surface-border)] bg-[color:var(--surface)]">
         <div className="relative aspect-[1/1] w-full">
           <img
@@ -312,6 +329,8 @@ export default function StatistikClient({ isLeader }: { isLeader: boolean }) {
   const [events, setEvents] = useState<StatsEvent[]>([]);
   const [eventsLoading, setEventsLoading] = useState(false);
   const [eventsError, setEventsError] = useState<string | null>(null);
+
+  const [players, setPlayers] = useState<StatsPlayerSummary[]>([]);
 
   const [eventFiles, setEventFiles] = useState<StatsFile[]>([]);
   const [playerFiles, setPlayerFiles] = useState<StatsFile[]>([]);
@@ -386,9 +405,24 @@ export default function StatistikClient({ isLeader }: { isLeader: boolean }) {
 
   useEffect(() => {
     loadEvents();
+    void loadPlayers();
     loadFiles();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  async function loadPlayers() {
+    try {
+      const res = await fetch("/api/stats/players", { cache: "no-store" });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setPlayers([]);
+        return;
+      }
+      setPlayers(data?.players ?? []);
+    } catch {
+      setPlayers([]);
+    }
+  }
 
   async function uploadFiles(kind: "EVENTS" | "PLAYERS", files: FileList | File[]) {
     const list = Array.from(files ?? []);
@@ -453,6 +487,7 @@ export default function StatistikClient({ isLeader }: { isLeader: boolean }) {
   const filteredEvents = useMemo(() => {
     const pSel = norm(filters.perspektiv);
     const gameSel = norm(filters.kamp);
+    const strengthSel = norm(filters.styrke);
     const playerSel = norm(filters.spiller);
     const goalieSel = norm(filters.maalmand);
     const onIceSel = filters.paaBanen.map((x) => norm(x)).filter(Boolean);
@@ -463,6 +498,8 @@ export default function StatistikClient({ isLeader }: { isLeader: boolean }) {
       if (norm(e.teamName ?? e.perspective) !== pSel) return false;
 
       if (gameSel && norm(e.gameId) !== gameSel) return false;
+
+      if (strengthSel && norm(e.strength) !== strengthSel) return false;
 
       if (goalieSel && norm(e.goalieName) !== goalieSel) return false;
 
@@ -491,6 +528,7 @@ export default function StatistikClient({ isLeader }: { isLeader: boolean }) {
     if (!selectedTeam) return [];
 
     const gameSel = norm(filters.kamp);
+    const strengthSel = norm(filters.styrke);
     const playerSel = norm(filters.spiller);
     const goalieSel = norm(filters.maalmand);
     const onIceSel = filters.paaBanen.map((x) => norm(x)).filter(Boolean);
@@ -500,6 +538,8 @@ export default function StatistikClient({ isLeader }: { isLeader: boolean }) {
       void classifyShotKind(e.event);
 
       if (gameSel && norm(e.gameId) !== gameSel) return false;
+
+      if (strengthSel && norm(e.strength) !== strengthSel) return false;
       if (goalieSel && norm(e.goalieName) !== goalieSel) return false;
 
       if (playerSel) {
@@ -519,6 +559,17 @@ export default function StatistikClient({ isLeader }: { isLeader: boolean }) {
       return true;
     });
   }, [events, filters]);
+
+  const teamColors = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const p of players) {
+      const name = String(p.teamName ?? "").trim();
+      const color = String(p.teamColor ?? "").trim();
+      if (!name || !color) continue;
+      if (!map.has(name)) map.set(name, color);
+    }
+    return map;
+  }, [players]);
 
   const shotMapFlipByPeriod = useMemo(() => {
     const selectedTeam = String(filters.perspektiv ?? "").trim();
@@ -835,18 +886,6 @@ export default function StatistikClient({ isLeader }: { isLeader: boolean }) {
       ) : tab === "shotmap" ? (
         <section className="space-y-6">
           <div className="rounded-md border border-[color:var(--surface-border)] p-4">
-            <div className="flex items-center justify-between gap-3">
-              <h2 className="text-lg font-semibold">Shot Map</h2>
-              <button
-                type="button"
-                onClick={loadEvents}
-                disabled={eventsLoading}
-                className="rounded-md border border-zinc-300 bg-white px-3 py-1.5 text-sm disabled:opacity-50"
-              >
-                Opdater
-              </button>
-            </div>
-
             {eventsError ? (
               <p className="mt-2 text-sm text-red-600">{eventsError}</p>
             ) : null}
@@ -856,13 +895,14 @@ export default function StatistikClient({ isLeader }: { isLeader: boolean }) {
             ) : shotMapEvents.length === 0 ? (
               <p className="mt-4 text-sm text-zinc-600">Ingen events.</p>
             ) : (
-              <div className="mt-4 grid gap-4 md:grid-cols-[1fr_280px_1fr] md:items-start">
+              <div className="mt-4 grid gap-4 md:grid-cols-[1fr_220px_1fr] md:items-start">
                 <HalfRink
                   title="Defensive End"
                   half="left"
                   events={shotMapEvents}
                   selectedTeam={String(filters.perspektiv ?? "").trim()}
                   flipByPeriod={shotMapFlipByPeriod}
+                  teamColors={teamColors}
                 />
 
                 <div className="space-y-3">
@@ -928,6 +968,7 @@ export default function StatistikClient({ isLeader }: { isLeader: boolean }) {
                   events={shotMapEvents}
                   selectedTeam={String(filters.perspektiv ?? "").trim()}
                   flipByPeriod={shotMapFlipByPeriod}
+                  teamColors={teamColors}
                 />
               </div>
             )}

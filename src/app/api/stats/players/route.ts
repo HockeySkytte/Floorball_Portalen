@@ -16,6 +16,7 @@ export async function GET() {
       name: true,
       line: true,
       teamName: true,
+      teamColor: true,
       gameId: true,
     },
   });

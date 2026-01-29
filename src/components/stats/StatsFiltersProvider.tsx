@@ -5,6 +5,7 @@ import { createContext, useContext, useMemo, useState } from "react";
 export type StatsFilters = {
   perspektiv: string;
   kamp: string;
+  styrke: string;
   spiller: string;
   maalmand: string;
   paaBanen: string[];
@@ -14,6 +15,7 @@ type StatsFiltersContextValue = {
   filters: StatsFilters;
   setPerspektiv: (v: string) => void;
   setKamp: (v: string) => void;
+  setStyrke: (v: string) => void;
   setSpiller: (v: string) => void;
   setMaalmand: (v: string) => void;
   setPaaBanen: (v: string[]) => void;
@@ -35,6 +37,7 @@ export default function StatsFiltersProvider({
   const [filters, setFilters] = useState<StatsFilters>({
     perspektiv: "",
     kamp: "",
+    styrke: "",
     spiller: "",
     maalmand: "",
     paaBanen: [],
@@ -52,6 +55,11 @@ export default function StatsFiltersProvider({
         setFilters((s) => ({
           ...s,
           kamp: v,
+        })),
+      setStyrke: (v) =>
+        setFilters((s) => ({
+          ...s,
+          styrke: v,
         })),
       setSpiller: (v) =>
         setFilters((s) => ({
