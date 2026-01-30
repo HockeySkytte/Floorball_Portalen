@@ -818,7 +818,7 @@ function SortableTable<T>({
   }, [rows, columns, sortKey, sortDir]);
 
   return (
-    <div className="w-full max-w-full overflow-x-auto overscroll-x-contain">
+    <div className="min-w-0 w-full max-w-full overflow-x-auto overscroll-x-contain">
       <table
         className={
           (minWidthClass ?? "") +

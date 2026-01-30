@@ -8,7 +8,8 @@ import Link from "next/link";
 import TopNav from "@/components/TopNav";
 import MobileAppHeader from "@/components/MobileAppHeader";
 import StatsFiltersProvider from "@/components/stats/StatsFiltersProvider";
-import StatsSidebarSlicers from "@/components/stats/StatsSidebarSlicers";
+import TaktiktavleProvider from "@/components/taktiktavle/TaktiktavleProvider";
+import TaktiktavleSidebar from "@/components/taktiktavle/TaktiktavleSidebar";
 
 export default async function AppLayout({
   children,
@@ -42,6 +43,7 @@ export default async function AppLayout({
 
   return (
     <StatsFiltersProvider>
+      <TaktiktavleProvider>
       <div className="grid min-h-dvh w-full grid-cols-1 md:grid-cols-[280px_1fr]">
         {/* Desktop: left slicer pane */}
         <aside className="hidden min-h-dvh flex-col bg-[image:var(--sidebar-gradient)] bg-cover bg-no-repeat p-4 text-[var(--brand-foreground)] md:flex">
@@ -66,11 +68,11 @@ export default async function AppLayout({
               selectedTeamId={resolvedSelectedTeamId}
             />
           </div>
-          <StatsSidebarSlicers />
+          <TaktiktavleSidebar />
         </aside>
 
         {/* Right side: topbar starts AFTER sidebar */}
-        <div className="flex min-h-dvh flex-col">
+        <div className="flex min-h-dvh min-w-0 flex-col">
           <div className="hidden md:block">
             <TopNav
               user={{ username: user.username, isAdmin, teamRole: user.activeRole }}
@@ -85,11 +87,12 @@ export default async function AppLayout({
             logoUrl={selectedTeamLogoUrl}
           />
 
-          <main className="flex-1 p-4 text-[var(--surface-foreground)] md:p-6">
+          <main className="flex-1 min-w-0 p-4 text-[var(--surface-foreground)] md:p-6">
             {children}
           </main>
         </div>
       </div>
+      </TaktiktavleProvider>
     </StatsFiltersProvider>
   );
 }
