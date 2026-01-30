@@ -1,6 +1,7 @@
 "use client";
 
 import { usePathname } from "next/navigation";
+import { useEffect } from "react";
 import { useTaktiktavleUi, type TaktikTool } from "@/components/taktiktavle/TaktiktavleProvider";
 
 function ToolButton({
@@ -111,6 +112,7 @@ export default function TaktiktavleSidebar() {
     setStrokeWidth,
     color,
     setColor,
+    docKind,
     lineMode,
     setLineMode,
     accessorySize,
@@ -119,8 +121,32 @@ export default function TaktiktavleSidebar() {
 
   if (!show) return null;
 
+  const isAnimation = docKind === "animation";
+
+  // Keep UI consistent when switching between image/animation docs
+  useEffect(() => {
+    if (!isAnimation) return;
+    const allowed = tool === "select" || tool === "eraser" || tool === "player" || tool === "cone" || tool === "ball" || tool === "text" || tool === "arrow-solid";
+    if (!allowed) setTool("arrow-solid");
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isAnimation]);
+
   return (
     <div className="mt-4 space-y-4">
+      <div className="rounded-md border border-white/15 bg-white/5 px-3 py-2">
+        <div className="flex items-center justify-between gap-2">
+          <div className="text-xs font-extrabold tracking-wide opacity-90">TAKTIKTAVLE</div>
+          <div className="rounded-full bg-white/10 px-2 py-0.5 text-[11px] font-semibold">
+            {docKind === "animation" ? "Animation" : docKind === "image" ? "Billede" : "Ingen"}
+          </div>
+        </div>
+        <div className="mt-1 text-[11px] leading-4 opacity-85">
+          {isAnimation
+            ? "I animation bruges linjer som usynlige bevægelsesbaner."
+            : "Tegn taktik og øvelser som et billede."}
+        </div>
+      </div>
+
       <div>
         <div className="text-xs font-extrabold tracking-wide opacity-90">VÆRKTØJ</div>
         <div className="mt-2 space-y-1">
@@ -132,48 +158,24 @@ export default function TaktiktavleSidebar() {
       <div>
         <div className="text-xs font-extrabold tracking-wide opacity-90">LINJER</div>
         <div className="mt-2 space-y-1">
-          <ToolButton
-            tool="line-solid"
-            activeTool={tool}
-            setTool={setTool}
-            label="Solid"
-            icon={<LineIcon />}
-          />
-          <ToolButton
-            tool="line-dashed"
-            activeTool={tool}
-            setTool={setTool}
-            label="Stiplet"
-            icon={<LineIcon dashed />}
-          />
-          <ToolButton
-            tool="line-wavy"
-            activeTool={tool}
-            setTool={setTool}
-            label="Bølget"
-            icon={<LineIcon wavy />}
-          />
-          <ToolButton
-            tool="arrow-solid"
-            activeTool={tool}
-            setTool={setTool}
-            label="Solid + pil"
-            icon={<LineIcon arrow />}
-          />
-          <ToolButton
-            tool="arrow-dashed"
-            activeTool={tool}
-            setTool={setTool}
-            label="Stiplet + pil"
-            icon={<LineIcon dashed arrow />}
-          />
-          <ToolButton
-            tool="arrow-wavy"
-            activeTool={tool}
-            setTool={setTool}
-            label="Bølget + pil"
-            icon={<LineIcon wavy arrow />}
-          />
+          {isAnimation ? (
+            <ToolButton
+              tool="arrow-solid"
+              activeTool={tool}
+              setTool={setTool}
+              label="Solid + pil"
+              icon={<LineIcon arrow />}
+            />
+          ) : (
+            <>
+              <ToolButton tool="line-solid" activeTool={tool} setTool={setTool} label="Solid" icon={<LineIcon />} />
+              <ToolButton tool="line-dashed" activeTool={tool} setTool={setTool} label="Stiplet" icon={<LineIcon dashed />} />
+              <ToolButton tool="line-wavy" activeTool={tool} setTool={setTool} label="Bølget" icon={<LineIcon wavy />} />
+              <ToolButton tool="arrow-solid" activeTool={tool} setTool={setTool} label="Solid + pil" icon={<LineIcon arrow />} />
+              <ToolButton tool="arrow-dashed" activeTool={tool} setTool={setTool} label="Stiplet + pil" icon={<LineIcon dashed arrow />} />
+              <ToolButton tool="arrow-wavy" activeTool={tool} setTool={setTool} label="Bølget + pil" icon={<LineIcon wavy arrow />} />
+            </>
+          )}
         </div>
       </div>
 
@@ -276,6 +278,7 @@ export default function TaktiktavleSidebar() {
 
       <div className="rounded-md border border-white/15 bg-white/5 p-2 text-[11px] leading-4 opacity-90">
         Tips: Klik for at tegne. Lige = 2 klik. Kurve = 3 klik. Vælg "Slet" og klik på et objekt for at fjerne det.
+        {isAnimation ? " (I animation skal du vælge et tilbehør før du tegner en bane.)" : null}
       </div>
     </div>
   );

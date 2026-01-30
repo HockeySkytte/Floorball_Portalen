@@ -16,6 +16,21 @@ export default function LeaderPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  const [matches, setMatches] = useState<
+    {
+      id: string;
+      title: string;
+      videoUrl: string;
+      createdAt: string;
+    }[]
+  >([]);
+  const [matchesLoading, setMatchesLoading] = useState(false);
+  const [matchesError, setMatchesError] = useState<string | null>(null);
+
+  const [newTitle, setNewTitle] = useState("");
+  const [newUrl, setNewUrl] = useState("");
+  const [creating, setCreating] = useState(false);
+
   async function load() {
     setLoading(true);
     setError(null);
@@ -39,6 +54,28 @@ export default function LeaderPage() {
     load();
   }, []);
 
+  async function loadMatches() {
+    setMatchesLoading(true);
+    setMatchesError(null);
+
+    try {
+      const res = await fetch("/api/leader/matches", { cache: "no-store" });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setMatchesError(data?.message ?? "Kunne ikke hente kampe.");
+        setMatches([]);
+        return;
+      }
+      setMatches(data?.matches ?? []);
+    } finally {
+      setMatchesLoading(false);
+    }
+  }
+
+  useEffect(() => {
+    loadMatches();
+  }, []);
+
   async function approve(membershipId: string, approve: boolean) {
     const res = await fetch("/api/leader/approve", {
       method: "POST",
@@ -51,6 +88,51 @@ export default function LeaderPage() {
       const data = await res.json().catch(() => ({}));
       setError(data?.message ?? "Kunne ikke opdatere bruger.");
     }
+  }
+
+  async function createMatch(e: React.FormEvent) {
+    e.preventDefault();
+    const title = newTitle.trim();
+    const videoUrl = newUrl.trim();
+    if (!title || !videoUrl) return;
+
+    setCreating(true);
+    setMatchesError(null);
+    try {
+      const res = await fetch("/api/leader/matches", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ title, videoUrl }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setMatchesError(data?.message ?? "Kunne ikke oprette kamp.");
+        return;
+      }
+      setNewTitle("");
+      setNewUrl("");
+      await loadMatches();
+    } finally {
+      setCreating(false);
+    }
+  }
+
+  async function deleteMatch(matchId: string) {
+    const ok = window.confirm("Slet kampen?");
+    if (!ok) return;
+
+    setMatchesError(null);
+    const res = await fetch("/api/leader/matches", {
+      method: "DELETE",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ matchId }),
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      setMatchesError(data?.message ?? "Kunne ikke slette kamp.");
+      return;
+    }
+    await loadMatches();
   }
 
   return (
@@ -112,6 +194,82 @@ export default function LeaderPage() {
             ))}
           </div>
         )}
+      </section>
+
+      <section className="rounded-md border bg-white p-4">
+        <div className="flex items-center justify-between gap-2">
+          <h2 className="text-lg font-semibold">Kampe</h2>
+          <button
+            type="button"
+            onClick={loadMatches}
+            className="rounded-md border border-zinc-300 bg-white px-3 py-1.5 text-sm"
+            disabled={matchesLoading}
+          >
+            Opdater
+          </button>
+        </div>
+
+        <p className="mt-2 text-sm text-zinc-600">Tilføj en kamp (Titel + Video URL). Kampene kan afspilles under Kampe.</p>
+
+        {matchesError ? <p className="mt-2 text-sm text-red-600">{matchesError}</p> : null}
+
+        <form onSubmit={createMatch} className="mt-4 grid gap-2 sm:grid-cols-3">
+          <input
+            className="w-full rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm"
+            placeholder="Titel"
+            value={newTitle}
+            onChange={(e) => setNewTitle(e.target.value)}
+            required
+          />
+          <input
+            className="w-full rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm"
+            placeholder="Video URL (YouTube)"
+            value={newUrl}
+            onChange={(e) => setNewUrl(e.target.value)}
+            required
+          />
+          <button
+            type="submit"
+            className="rounded-md bg-zinc-900 px-3 py-2 text-sm font-semibold text-white disabled:opacity-60"
+            disabled={creating}
+          >
+            {creating ? "Gemmer…" : "Tilføj"}
+          </button>
+        </form>
+
+        {matchesLoading ? <p className="mt-3 text-sm text-zinc-600">Henter…</p> : null}
+
+        {matches.length === 0 && !matchesLoading ? (
+          <p className="mt-4 text-sm text-zinc-600">Ingen kampe endnu.</p>
+        ) : null}
+
+        {matches.length > 0 ? (
+          <div className="mt-4 space-y-2">
+            {matches.map((m) => (
+              <div key={m.id} className="flex flex-col gap-2 rounded-md border border-zinc-200 p-3 sm:flex-row sm:items-center sm:justify-between">
+                <div className="min-w-0">
+                  <div className="truncate text-sm font-medium">{m.title}</div>
+                  <div className="truncate text-xs text-zinc-600">{m.videoUrl}</div>
+                </div>
+                <div className="flex gap-2">
+                  <a
+                    className="rounded-md border border-zinc-300 bg-white px-3 py-1.5 text-sm"
+                    href="/kampe"
+                  >
+                    Afspil
+                  </a>
+                  <button
+                    type="button"
+                    onClick={() => deleteMatch(m.id)}
+                    className="rounded-md border border-zinc-300 bg-white px-3 py-1.5 text-sm"
+                  >
+                    Slet
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        ) : null}
       </section>
     </main>
   );

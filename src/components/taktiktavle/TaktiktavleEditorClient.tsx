@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useMemo, useRef, useState } from "react";
+import React, { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { useTaktiktavleUi } from "@/components/taktiktavle/TaktiktavleProvider";
 
 type DocKind = "image" | "animation";
@@ -196,7 +196,7 @@ function templateLabel(t: CanvasTemplate) {
 }
 
 export default function TaktiktavleEditorClient() {
-  const { tool, color, strokeWidth, lineMode, accessorySize } = useTaktiktavleUi();
+  const { tool, color, strokeWidth, lineMode, accessorySize, setDocKind } = useTaktiktavleUi();
 
   const STORAGE_KEY = "taktiktavle:state:v1";
 
@@ -277,6 +277,11 @@ export default function TaktiktavleEditorClient() {
       // ignore
     }
   }, [doc, activeFrameIndex]);
+
+  // Expose doc kind to the sidebar (image vs animation)
+  useEffect(() => {
+    setDocKind(doc?.kind ?? null);
+  }, [doc?.kind, setDocKind]);
 
   useEffect(() => {
     if (tool.startsWith("line-") || tool.startsWith("arrow-")) return;
@@ -383,13 +388,13 @@ export default function TaktiktavleEditorClient() {
   }
 
   function currentLineConfig(): { style: PathStyle; arrow: boolean } | null {
-    // For animations: paths are motion guides (not visuals)
+    // For animations: simplified toolset (Solid + pil)
     // - only solid
-    // - no arrow heads
+    // - arrow allowed for direction (hidden during playback)
     if (doc?.kind === "animation") {
-      if (tool.startsWith("line-") || tool.startsWith("arrow-")) {
-        return { style: "solid", arrow: false };
-      }
+      if (tool === "arrow-solid") return { style: "solid", arrow: true };
+      // Allow other legacy selections (if any) but force solid
+      if (tool.startsWith("line-") || tool.startsWith("arrow-")) return { style: "solid", arrow: tool.startsWith("arrow-") };
       return null;
     }
 
@@ -1066,10 +1071,10 @@ export default function TaktiktavleEditorClient() {
   }, [doc, isPlaying, activeFrameIndex]);
 
   // Redraw on key deps
-  useEffect(() => {
+  useLayoutEffect(() => {
     redraw(performance.now());
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [containerSize.w, containerSize.h, doc, activeFrameIndex, selectedId, isPlaying]);
+  }, [containerSize.w, containerSize.h, doc, activeFrameIndex, selectedId, isPlaying, tool, color, strokeWidth, lineMode, accessorySize]);
 
   return (
     <div className="space-y-4">
@@ -1171,10 +1176,10 @@ export default function TaktiktavleEditorClient() {
         </div>
       ) : null}
 
-      <div ref={containerRef} className="mx-auto max-w-[980px] rounded-md border border-[color:var(--surface-border)] bg-white p-3">
+      <div ref={containerRef} className="mx-auto max-w-[980px] bg-transparent">
         <canvas
           ref={canvasRef}
-          className="block w-full rounded-md border border-zinc-200"
+          className="block w-full"
           onPointerDown={onPointerDown}
           onPointerMove={onPointerMove}
           onPointerUp={onPointerUp}
