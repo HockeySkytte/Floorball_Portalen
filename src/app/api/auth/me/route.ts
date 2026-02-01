@@ -11,8 +11,8 @@ export async function GET() {
       username: user.username,
       email: user.email,
       globalRole: user.globalRole,
-      role: user.activeRole,
-      membershipStatus: user.activeMembership?.status ?? null,
+      superuserStatus: user.superuserStatus,
+      league: user.activeLeague ? { id: user.activeLeague.id, name: user.activeLeague.name } : null,
       team: user.activeTeam ? { id: user.activeTeam.id, name: user.activeTeam.name } : null,
     },
   });

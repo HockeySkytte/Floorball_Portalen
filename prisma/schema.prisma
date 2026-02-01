@@ -12,6 +12,7 @@ datasource db {
 
 enum GlobalRole {
   ADMIN
+  SUPERUSER
   USER
 }
 
@@ -26,6 +27,11 @@ enum ApprovalStatus {
   PENDING_LEADER
   APPROVED
   REJECTED
+}
+
+enum Gender {
+  MEN
+  WOMEN
 }
 
 enum TeamColor {
@@ -55,12 +61,24 @@ enum TestType {
   BEEP
 }
 
-model Team {
+model League {
   id        String   @id @default(cuid())
   name      String   @unique
+  teams     Team[]
+  users     User[]
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Team {
+  id        String   @id @default(cuid())
+  leagueId  String
+  league    League   @relation(fields: [leagueId], references: [id], onDelete: Restrict)
+  name      String
   logoUrl   String?
   themePrimary   TeamColor @default(RED)
   themeSecondary TeamColor @default(WHITE)
+  users     User[]
   memberships TeamMembership[]
   statsFiles StatsFile[]
   statsEvents StatsEvent[]
@@ -71,6 +89,8 @@ model Team {
   readinessEntries TeamReadinessEntry[]
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+
+  @@unique([leagueId, name])
 }
 
 model TeamReadinessEntry {
@@ -180,12 +200,22 @@ model User {
   id           String         @id @default(cuid())
   globalRole   GlobalRole     @default(USER)
 
+  superuserStatus ApprovalStatus @default(APPROVED)
+
+  leagueId     String
+  league       League          @relation(fields: [leagueId], references: [id], onDelete: Restrict)
+
+  teamId       String?
+  team         Team?           @relation(fields: [teamId], references: [id], onDelete: SetNull)
+
   email        String         @unique
   username     String         @unique
   passwordHash String
 
   name         String?
   imageUrl     String?
+
+  gender       Gender         @default(MEN)
 
   position     String?
   birthDate    DateTime?

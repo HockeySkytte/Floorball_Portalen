@@ -8,7 +8,7 @@ export default async function AdminLayout({
 }) {
   const user = await getCurrentUser();
   if (!user) redirect("/login");
-  if (!user.isAdmin) redirect("/statistik");
+  if (!user.isAdmin) redirect("/kalender");
 
   return <>{children}</>;
 }

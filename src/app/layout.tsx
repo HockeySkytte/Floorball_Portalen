@@ -14,8 +14,8 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Floorball",
-  description: "Platform til ledere, spillere og supportere",
+  title: "Floorball Portalen",
+  description: "Floorball Portalen",
 };
 
 export default async function RootLayout({

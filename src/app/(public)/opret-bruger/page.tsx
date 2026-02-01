@@ -1,36 +1,21 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useState } from "react";
 import { useRouter } from "next/navigation";
 
-type Team = { id: string; name: string };
-
-type Role = "LEADER" | "PLAYER" | "SUPPORTER";
+type AccountType = "USER" | "SUPERUSER";
 
 export default function SignupPage() {
   const router = useRouter();
-  const [teams, setTeams] = useState<Team[]>([]);
-  const [teamId, setTeamId] = useState<string>("");
-  const [role, setRole] = useState<Role>("PLAYER");
+  const [leagueName, setLeagueName] = useState("");
+  const [teamName, setTeamName] = useState("");
+  const [accountType, setAccountType] = useState<AccountType>("USER");
   const [email, setEmail] = useState("");
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
-
-  useEffect(() => {
-    fetch("/api/public/teams")
-      .then((r) => r.json())
-      .then((data) => {
-        setTeams(data?.teams ?? []);
-      })
-      .catch(() => {
-        setTeams([]);
-      });
-  }, []);
-
-  const requiresTeam = useMemo(() => true, []);
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -42,7 +27,14 @@ export default function SignupPage() {
       const res = await fetch("/api/auth/signup", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ teamId, role, email, username, password }),
+        body: JSON.stringify({
+          leagueName,
+          teamName,
+          accountType,
+          email,
+          username,
+          password,
+        }),
       });
 
       const data = await res.json().catch(() => ({}));
@@ -52,14 +44,16 @@ export default function SignupPage() {
       }
 
       setSuccess(
-        role === "LEADER"
-          ? "Din leder-bruger afventer admin-godkendelse."
-          : "Din bruger afventer godkendelse fra en leder på holdet."
+        accountType === "SUPERUSER"
+          ? "Din superbruger afventer admin-godkendelse."
+          : "Bruger oprettet. Du kan nu logge ind."
       );
 
       setEmail("");
       setUsername("");
       setPassword("");
+      setLeagueName("");
+      setTeamName("");
 
       setTimeout(() => {
         router.push("/login");
@@ -75,35 +69,37 @@ export default function SignupPage() {
 
       <form onSubmit={onSubmit} className="mt-6 space-y-4">
         <div>
-          <label className="block text-sm font-medium">Hold</label>
-          <select
+          <label className="block text-sm font-medium">Liga</label>
+          <input
             className="mt-1 w-full rounded-md border border-zinc-300 bg-white px-3 py-2"
-            value={teamId}
-            onChange={(e) => setTeamId(e.target.value)}
-            required={requiresTeam}
-          >
-            <option value="" disabled>
-              Vælg hold
-            </option>
-            {teams.map((t) => (
-              <option key={t.id} value={t.id}>
-                {t.name}
-              </option>
-            ))}
-          </select>
+            value={leagueName}
+            onChange={(e) => setLeagueName(e.target.value)}
+            placeholder="Fx 1. division"
+            required
+          />
         </div>
 
         <div>
-          <label className="block text-sm font-medium">Rolle</label>
+          <label className="block text-sm font-medium">Hold</label>
+          <input
+            className="mt-1 w-full rounded-md border border-zinc-300 bg-white px-3 py-2"
+            value={teamName}
+            onChange={(e) => setTeamName(e.target.value)}
+            placeholder="Fx FC Example"
+            required
+          />
+        </div>
+
+        <div>
+          <label className="block text-sm font-medium">Brugertype</label>
           <select
             className="mt-1 w-full rounded-md border border-zinc-300 bg-white px-3 py-2"
-            value={role}
-            onChange={(e) => setRole(e.target.value as Role)}
+            value={accountType}
+            onChange={(e) => setAccountType(e.target.value as AccountType)}
             required
           >
-            <option value="LEADER">Leder</option>
-            <option value="PLAYER">Spiller</option>
-            <option value="SUPPORTER">Supporter</option>
+            <option value="USER">Bruger</option>
+            <option value="SUPERUSER">Superbruger</option>
           </select>
         </div>
 

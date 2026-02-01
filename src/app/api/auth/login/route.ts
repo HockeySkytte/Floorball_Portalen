@@ -8,6 +8,12 @@ async function ensureBootstrapAdmin() {
   const adminPassword = process.env.ADMIN_PASSWORD ?? "";
   if (!adminEmail || !adminPassword) return;
 
+  const defaultLeague = await prisma.league.upsert({
+    where: { id: "league_default" },
+    update: { name: "Standard Liga" },
+    create: { id: "league_default", name: "Standard Liga" },
+  });
+
   const passwordHash = await hashPassword(adminPassword);
   const desiredUsername = "admin";
 
@@ -19,6 +25,8 @@ async function ensureBootstrapAdmin() {
     await prisma.user.create({
       data: {
         globalRole: "ADMIN",
+        superuserStatus: "APPROVED",
+        leagueId: defaultLeague.id,
         email: adminEmail,
         username: desiredUsername,
         passwordHash,
@@ -36,24 +44,43 @@ async function ensureBootstrapAdmin() {
       where: { id: existingByUsername.id },
       data: {
         globalRole: "ADMIN",
+        superuserStatus: "APPROVED",
+        leagueId: defaultLeague.id,
         passwordHash,
         ...(canSetEmail ? { email: adminEmail } : {}),
       },
     });
   }
 
-  const existingTeams = await prisma.team.count();
-  if (existingTeams === 0) {
-    const teams = ["U19 herrelandsholdet", "U17 herrelandsholdet"];
-    for (const name of teams) {
-      await prisma.team.create({
-        data: {
-          name,
-          themePrimary: "RED",
-          themeSecondary: "WHITE",
-        },
-      });
-    }
+  const teams = ["U19 herrelandsholdet", "U17 herrelandsholdet"];
+  for (const name of teams) {
+    await prisma.team.upsert({
+      where: { leagueId_name: { leagueId: defaultLeague.id, name } },
+      update: {
+        themePrimary: "RED",
+        themeSecondary: "WHITE",
+      },
+      create: {
+        leagueId: defaultLeague.id,
+        name,
+        themePrimary: "RED",
+        themeSecondary: "WHITE",
+      },
+    });
+  }
+
+  const firstTeam = await prisma.team.findFirst({
+    where: { leagueId: defaultLeague.id },
+    orderBy: { name: "asc" },
+    select: { id: true },
+  });
+
+  // Ensure admin has a reasonable default context.
+  if (firstTeam) {
+    await prisma.user.update({
+      where: { username: desiredUsername },
+      data: { teamId: firstTeam.id },
+    });
   }
 }
 

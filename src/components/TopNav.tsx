@@ -6,17 +6,12 @@ import Link from "next/link";
 export type TopNavUser = {
   username: string;
   isAdmin: boolean;
-  teamRole: string | null;
 };
 
 export default function TopNav({
   user,
-  leaderPendingCount,
-  adminPendingLeadersCount,
 }: {
   user: TopNavUser | null;
-  leaderPendingCount?: number;
-  adminPendingLeadersCount?: number;
 }) {
   const mobileMenuRef = useRef<HTMLDetailsElement | null>(null);
   const userMenuRef = useRef<HTMLDetailsElement | null>(null);
@@ -38,50 +33,19 @@ export default function TopNav({
         <div className="flex items-center gap-4">
           {/* Desktop navigation */}
           <nav className="hidden items-center gap-5 text-base sm:flex">
+            <Link className="hover:underline" href="/kalender">
+              Kalender
+            </Link>
+            <Link className="hover:underline" href="/stilling">
+              Stilling
+            </Link>
             <Link className="hover:underline" href="/statistik">
               Statistik
-            </Link>
-            <Link className="hover:underline" href="/taktiktavle">
-              Taktiktavle
-            </Link>
-            <a
-              className="hover:underline"
-              href="https://sports-tagging.netlify.app/floorball/"
-              target="_blank"
-              rel="noreferrer"
-            >
-              Shot Plotter
-            </a>
-            <Link className="hover:underline" href="/kampe">
-              Kampe
-            </Link>
-            <Link className="hover:underline" href="/spiller">
-              Spiller
             </Link>
 
             {user?.isAdmin ? (
               <Link className="hover:underline" href="/admin">
-                <span className="inline-flex items-center gap-2">
-                  Admin
-                  {(adminPendingLeadersCount ?? 0) > 0 ? (
-                    <span className="inline-grid min-w-[20px] place-items-center rounded-full bg-red-600 px-1.5 text-xs font-bold leading-5 text-white">
-                      {adminPendingLeadersCount}
-                    </span>
-                  ) : null}
-                </span>
-              </Link>
-            ) : null}
-
-            {user?.teamRole === "LEADER" ? (
-              <Link className="hover:underline" href="/leder">
-                <span className="inline-flex items-center gap-2">
-                  Leder
-                  {(leaderPendingCount ?? 0) > 0 ? (
-                    <span className="inline-grid min-w-[20px] place-items-center rounded-full bg-red-600 px-1.5 text-xs font-bold leading-5 text-white">
-                      {leaderPendingCount}
-                    </span>
-                  ) : null}
-                </span>
+                Admin
               </Link>
             ) : null}
           </nav>
@@ -95,40 +59,24 @@ export default function TopNav({
               <div className="flex flex-col">
                 <Link
                   className="rounded px-2 py-1 hover:bg-zinc-50"
+                  href="/kalender"
+                  onClick={() => closeDetails(mobileMenuRef)}
+                >
+                  Kalender
+                </Link>
+                <Link
+                  className="rounded px-2 py-1 hover:bg-zinc-50"
+                  href="/stilling"
+                  onClick={() => closeDetails(mobileMenuRef)}
+                >
+                  Stilling
+                </Link>
+                <Link
+                  className="rounded px-2 py-1 hover:bg-zinc-50"
                   href="/statistik"
                   onClick={() => closeDetails(mobileMenuRef)}
                 >
                   Statistik
-                </Link>
-                <Link
-                  className="rounded px-2 py-1 hover:bg-zinc-50"
-                  href="/taktiktavle"
-                  onClick={() => closeDetails(mobileMenuRef)}
-                >
-                  Taktiktavle
-                </Link>
-                <a
-                  className="rounded px-2 py-1 hover:bg-zinc-50"
-                  href="https://sports-tagging.netlify.app/floorball/"
-                  target="_blank"
-                  rel="noreferrer"
-                  onClick={() => closeDetails(mobileMenuRef)}
-                >
-                  Shot Plotter
-                </a>
-                <Link
-                  className="rounded px-2 py-1 hover:bg-zinc-50"
-                  href="/kampe"
-                  onClick={() => closeDetails(mobileMenuRef)}
-                >
-                  Kampe
-                </Link>
-                <Link
-                  className="rounded px-2 py-1 hover:bg-zinc-50"
-                  href="/spiller"
-                  onClick={() => closeDetails(mobileMenuRef)}
-                >
-                  Spiller
                 </Link>
 
                 {user?.isAdmin ? (
@@ -137,37 +85,20 @@ export default function TopNav({
                     href="/admin"
                     onClick={() => closeDetails(mobileMenuRef)}
                   >
-                    <span className="flex items-center justify-between gap-3">
-                      <span>Admin</span>
-                      {(adminPendingLeadersCount ?? 0) > 0 ? (
-                        <span className="inline-grid min-w-[20px] place-items-center rounded-full bg-red-600 px-1.5 text-xs font-bold leading-5 text-white">
-                          {adminPendingLeadersCount}
-                        </span>
-                      ) : null}
-                    </span>
-                  </Link>
-                ) : null}
-
-                {user?.teamRole === "LEADER" ? (
-                  <Link
-                    className="rounded px-2 py-1 hover:bg-zinc-50"
-                    href="/leder"
-                    onClick={() => closeDetails(mobileMenuRef)}
-                  >
-                    <span className="flex items-center justify-between gap-3">
-                      <span>Leder</span>
-                      {(leaderPendingCount ?? 0) > 0 ? (
-                        <span className="inline-grid min-w-[20px] place-items-center rounded-full bg-red-600 px-1.5 text-xs font-bold leading-5 text-white">
-                          {leaderPendingCount}
-                        </span>
-                      ) : null}
-                    </span>
+                    Admin
                   </Link>
                 ) : null}
 
                 {user ? (
                   <>
                     <div className="my-1 border-t border-zinc-200" />
+                    <Link
+                      className="rounded px-2 py-1 hover:bg-zinc-50"
+                      href="/indstillinger"
+                      onClick={() => closeDetails(mobileMenuRef)}
+                    >
+                      Indstillinger
+                    </Link>
                     <button
                       type="button"
                       onClick={logout}
@@ -175,13 +106,6 @@ export default function TopNav({
                     >
                       Log ud
                     </button>
-                    <Link
-                      className="rounded px-2 py-1 hover:bg-zinc-50"
-                      href="/tilfoej-rolle"
-                      onClick={() => closeDetails(mobileMenuRef)}
-                    >
-                      Tilføj Rolle
-                    </Link>
                   </>
                 ) : null}
               </div>
@@ -198,11 +122,11 @@ export default function TopNav({
               <div className="absolute right-0 z-50 mt-2 w-44 rounded-md border border-zinc-200 bg-white p-2 text-sm text-zinc-900 shadow-sm">
                 <div className="flex flex-col">
                   <Link
-                    className="rounded px-2 py-1 hover:bg-zinc-50"
-                    href="/tilfoej-rolle"
+                    className="rounded px-2 py-1 text-left hover:bg-zinc-50"
+                    href="/indstillinger"
                     onClick={() => closeDetails(userMenuRef)}
                   >
-                    Tilføj Rolle
+                    Indstillinger
                   </Link>
                   <button
                     type="button"

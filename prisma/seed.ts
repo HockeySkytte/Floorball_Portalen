@@ -4,22 +4,35 @@ import { PrismaClient, GlobalRole } from "@prisma/client";
 const prisma = new PrismaClient();
 
 async function main() {
+  const defaultLeague = await prisma.league.upsert({
+    where: { id: "league_default" },
+    update: { name: "Standard Liga" },
+    create: { id: "league_default", name: "Standard Liga" },
+  });
+
   const teams = ["U19 herrelandsholdet", "U17 herrelandsholdet"];
 
   for (const name of teams) {
     await prisma.team.upsert({
-      where: { name },
+      where: { leagueId_name: { leagueId: defaultLeague.id, name } },
       update: {
         themePrimary: "RED",
         themeSecondary: "WHITE",
       },
       create: {
+        leagueId: defaultLeague.id,
         name,
         themePrimary: "RED",
         themeSecondary: "WHITE",
       },
     });
   }
+
+  const firstTeam = await prisma.team.findFirst({
+    where: { leagueId: defaultLeague.id },
+    orderBy: { name: "asc" },
+    select: { id: true },
+  });
 
   const adminEmail = process.env.ADMIN_EMAIL ?? "admin@floorball.local";
   const adminPassword = process.env.ADMIN_PASSWORD ?? "SkiftMig123!";
@@ -34,6 +47,8 @@ async function main() {
     await prisma.user.create({
       data: {
         globalRole: GlobalRole.ADMIN,
+        leagueId: defaultLeague.id,
+        teamId: firstTeam?.id ?? null,
         email: adminEmail,
         username: desiredUsername,
         passwordHash,
@@ -53,6 +68,8 @@ async function main() {
     where: { id: existingByUsername.id },
     data: {
       globalRole: GlobalRole.ADMIN,
+      leagueId: defaultLeague.id,
+      teamId: firstTeam?.id ?? null,
       passwordHash,
       ...(canSetEmail ? { email: adminEmail } : {}),
     },

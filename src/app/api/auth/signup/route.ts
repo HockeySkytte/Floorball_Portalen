@@ -1,30 +1,32 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { hashPassword } from "@/lib/password";
-import { ApprovalStatus, TeamRole } from "@prisma/client";
+import { ApprovalStatus, GlobalRole } from "@prisma/client";
 
 export async function POST(req: Request) {
   const body = await req.json().catch(() => null);
 
-  const teamId = String(body?.teamId ?? "").trim();
-  const roleInput = String(body?.role ?? "").trim();
+  const leagueName = String(body?.leagueName ?? "").trim();
+  const teamName = String(body?.teamName ?? "").trim();
+  const accountType = String(body?.accountType ?? "").trim().toUpperCase();
   const email = String(body?.email ?? "").trim().toLowerCase();
   const username = String(body?.username ?? "").trim();
   const password = String(body?.password ?? "");
 
-  if (!teamId || !roleInput || !email || !username || !password) {
+  if (!leagueName || !teamName || !accountType || !email || !username || !password) {
     return NextResponse.json(
       { message: "Udfyld venligst alle felter." },
       { status: 400 }
     );
   }
 
-  const allowedRoles = [TeamRole.LEADER, TeamRole.PLAYER, TeamRole.SUPPORTER] as const;
-  if (!allowedRoles.includes(roleInput as (typeof allowedRoles)[number])) {
-    return NextResponse.json({ message: "Ugyldig rolle." }, { status: 400 });
+  const allowedAccountTypes = ["USER", "SUPERUSER"] as const;
+  if (!allowedAccountTypes.includes(accountType as (typeof allowedAccountTypes)[number])) {
+    return NextResponse.json({ message: "Ugyldig brugertype." }, { status: 400 });
   }
 
-  const role = roleInput as TeamRole;
+  const globalRole =
+    accountType === "SUPERUSER" ? GlobalRole.SUPERUSER : GlobalRole.USER;
 
   if (password.length < 6) {
     return NextResponse.json(
@@ -33,10 +35,24 @@ export async function POST(req: Request) {
     );
   }
 
-  const team = await prisma.team.findUnique({ where: { id: teamId } });
-  if (!team) {
-    return NextResponse.json({ message: "Ugyldigt hold." }, { status: 400 });
-  }
+  const league = await prisma.league.upsert({
+    where: { name: leagueName },
+    update: {},
+    create: { name: leagueName },
+    select: { id: true },
+  });
+
+  const team = await prisma.team.upsert({
+    where: { leagueId_name: { leagueId: league.id, name: teamName } },
+    update: {},
+    create: {
+      leagueId: league.id,
+      name: teamName,
+      themePrimary: "RED",
+      themeSecondary: "WHITE",
+    },
+    select: { id: true },
+  });
 
   const existing = await prisma.user.findFirst({
     where: {
@@ -52,23 +68,22 @@ export async function POST(req: Request) {
     );
   }
 
-  const status =
-    role === TeamRole.LEADER ? ApprovalStatus.PENDING_ADMIN : ApprovalStatus.PENDING_LEADER;
+  const superuserStatus =
+    globalRole === GlobalRole.SUPERUSER
+      ? ApprovalStatus.PENDING_ADMIN
+      : ApprovalStatus.APPROVED;
 
   const passwordHash = await hashPassword(password);
 
   await prisma.user.create({
     data: {
+      globalRole,
+      superuserStatus,
+      leagueId: league.id,
+      teamId: team.id,
       email,
       username,
       passwordHash,
-      memberships: {
-        create: {
-          teamId,
-          role,
-          status,
-        },
-      },
     },
   });
 

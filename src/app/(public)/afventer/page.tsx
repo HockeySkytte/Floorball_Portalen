@@ -7,10 +7,13 @@ export default function AfventerPage() {
       <p className="mt-2 text-zinc-600">
         Din konto er oprettet, men afventer godkendelse.
       </p>
-      <p className="mt-4 text-sm text-zinc-600">
-        Hvis du er <strong>leder</strong>, skal en admin godkende dig. Hvis du er
-        <strong> spiller/supporter</strong>, skal en leder på dit hold godkende dig.
-      </p>
+        <p className="mt-4 text-sm text-zinc-600">
+          En <strong>admin</strong> skal godkende superbrugere, før de kan få adgang.
+        </p>
+        <p className="mt-4 hidden text-sm text-zinc-600">
+          Hvis du er <strong>leder</strong>, skal en admin godkende dig. Hvis du er
+          <strong> spiller/supporter</strong>, skal en leder på dit hold godkende dig.
+        </p>
 
       <div className="mt-6">
         <Link className="underline" href="/login">

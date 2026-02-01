@@ -1,41 +1,29 @@
 "use client";
 
-import { usePathname, useSearchParams } from "next/navigation";
+import LeagueSlicer, { type LeagueOption } from "@/components/LeagueSlicer";
 import TeamSlicer, { type TeamOption } from "@/components/TeamSlicer";
-import StatsSidebarSlicers from "@/components/stats/StatsSidebarSlicers";
-import TaktiktavleSidebar from "@/components/taktiktavle/TaktiktavleSidebar";
-import PlayerSlicer from "@/components/PlayerSlicer";
-import SpillerVideoSidebarSlicers from "@/components/spiller/SpillerVideoSidebarSlicers";
+import GenderSlicer from "@/components/GenderSlicer";
 
 export default function AppSidebarContent({
-  isAdmin,
+  leagues,
+  selectedLeagueId,
   teams,
   selectedTeamId,
+  selectedGender,
 }: {
-  isAdmin: boolean;
+  leagues: LeagueOption[];
+  selectedLeagueId: string | null;
   teams: TeamOption[];
   selectedTeamId: string | null;
+  selectedGender: "MEN" | "WOMEN" | null;
 }) {
-  const pathname = usePathname();
-  const searchParams = useSearchParams();
-  const isTaktiktavle = pathname === "/taktiktavle" || pathname.startsWith("/taktiktavle/");
-  const isStatistik = pathname === "/statistik" || pathname.startsWith("/statistik/");
-  const isSpiller = pathname === "/spiller" || pathname.startsWith("/spiller/");
-  const spillerTab = String(searchParams.get("tab") ?? "").toLowerCase();
-
   return (
     <>
-      {/* No slicers at all on Taktiktavle */}
-      {!isTaktiktavle ? (
-        <div className="mt-4">
-          <TeamSlicer isAdmin={isAdmin} teams={teams} selectedTeamId={selectedTeamId} />
-        </div>
-      ) : null}
-
-      {isStatistik ? <StatsSidebarSlicers /> : null}
-      {isSpiller ? <PlayerSlicer /> : null}
-      {isSpiller && spillerTab === "video" ? <SpillerVideoSidebarSlicers /> : null}
-      {isTaktiktavle ? <TaktiktavleSidebar /> : null}
+      <div className="mt-4 space-y-4">
+        <GenderSlicer selectedGender={selectedGender} />
+        <LeagueSlicer leagues={leagues} selectedLeagueId={selectedLeagueId} />
+        <TeamSlicer teams={teams} selectedTeamId={selectedTeamId} />
+      </div>
     </>
   );
 }

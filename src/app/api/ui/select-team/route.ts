@@ -1,10 +1,10 @@
 import { NextResponse } from "next/server";
-import { requireAdmin } from "@/lib/auth";
+import { requireApprovedUser } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { getSession } from "@/lib/session";
 
 export async function POST(req: Request) {
-  await requireAdmin();
+  await requireApprovedUser();
   const body = await req.json().catch(() => null);
   const teamId = String(body?.teamId ?? "").trim();
 
@@ -14,7 +14,7 @@ export async function POST(req: Request) {
 
   const team = await prisma.team.findUnique({
     where: { id: teamId },
-    select: { id: true },
+    select: { id: true, leagueId: true },
   });
 
   if (!team) {
@@ -22,6 +22,7 @@ export async function POST(req: Request) {
   }
 
   const session = await getSession();
+  session.selectedLeagueId = team.leagueId;
   session.selectedTeamId = teamId;
   await session.save();
 

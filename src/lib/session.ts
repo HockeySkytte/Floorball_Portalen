@@ -3,7 +3,9 @@ import { cookies } from "next/headers";
 
 export type SessionData = {
   userId?: string;
+  selectedLeagueId?: string;
   selectedTeamId?: string;
+  selectedGender?: "MEN" | "WOMEN";
 };
 
 const sessionOptions: SessionOptions = {

@@ -42,7 +42,8 @@ type MembershipRow = {
   approvedAt: string | null;
 };
 
-export default function AdminPage() {
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+function LegacyAdminPage() {
   const [activeTab, setActiveTab] = useState<"MEMBERS" | "TEAMS">("MEMBERS");
 
   const [teamName, setTeamName] = useState("");
@@ -184,7 +185,7 @@ export default function AdminPage() {
     setEditName(t.name);
     setEditLogoUrl(t.logoUrl ?? "");
     setEditPrimary(t.themePrimary);
-    setEditSecondary(((t.themeSecondary as any) ?? "WHITE") as "WHITE" | "BLACK");
+    setEditSecondary(t.themeSecondary === "BLACK" ? "BLACK" : "WHITE");
     setDeletingTeamId(null);
     setDeleteError(null);
   }
@@ -489,7 +490,8 @@ export default function AdminPage() {
                 {teams.map((t) => {
                   const isEditing = editingTeamId === t.id;
                   const isDeleting = deletingTeamId === t.id;
-                  const themeSecondaryValue = ((t.themeSecondary as any) ?? "WHITE") as "WHITE" | "BLACK";
+                  const themeSecondaryValue: "WHITE" | "BLACK" =
+                    t.themeSecondary === "BLACK" ? "BLACK" : "WHITE";
 
                   return (
                     <div key={t.id} className="rounded-md border border-zinc-200 p-3">
@@ -631,6 +633,126 @@ export default function AdminPage() {
           </section>
         </>
       )}
+    </main>
+  );
+}
+
+type PendingSuperuser = {
+  id: string;
+  email: string;
+  username: string;
+  createdAt: string;
+  league: { name: string };
+  team: { name: string } | null;
+};
+
+export default function AdminPage() {
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [users, setUsers] = useState<PendingSuperuser[]>([]);
+
+  async function load() {
+    setLoading(true);
+    setError(null);
+
+    try {
+      const res = await fetch("/api/admin/pending-superusers", { cache: "no-store" });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok || !data?.ok) {
+        setError(data?.message ?? "Kunne ikke hente afventende superbrugere.");
+        setUsers([]);
+        return;
+      }
+
+      setUsers((data?.users ?? []) as PendingSuperuser[]);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  useEffect(() => {
+    load();
+  }, []);
+
+  async function decide(userId: string, approve: boolean) {
+    setError(null);
+    const res = await fetch("/api/admin/approve-superuser", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ userId, approve }),
+    });
+
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      setError(data?.message ?? "Kunne ikke opdatere superbruger.");
+      return;
+    }
+
+    await load();
+  }
+
+  return (
+    <main className="mx-auto max-w-4xl px-4 py-8">
+      <h1 className="text-2xl font-semibold">Admin</h1>
+      <p className="mt-2 text-sm text-zinc-600">Godkend superbrugere.</p>
+
+      <div className="mt-6 flex items-center gap-3">
+        <button
+          type="button"
+          onClick={load}
+          disabled={loading}
+          className="rounded-md border border-zinc-300 bg-white px-4 py-2 text-sm disabled:opacity-50"
+        >
+          {loading ? "Henter..." : "Genindl6s"}
+        </button>
+      </div>
+
+      {error ? <p className="mt-4 text-sm text-red-600">{error}</p> : null}
+
+      <div className="mt-6 overflow-hidden rounded-lg border border-zinc-200 bg-white">
+        <div className="grid grid-cols-[1fr_1fr_1fr_auto] gap-3 border-b border-zinc-200 bg-zinc-50 px-4 py-3 text-xs font-semibold text-zinc-700">
+          <div>Bruger</div>
+          <div>Liga</div>
+          <div>Hold</div>
+          <div className="text-right">Handling</div>
+        </div>
+
+        {users.length === 0 ? (
+          <div className="px-4 py-6 text-sm text-zinc-600">
+            Ingen afventende superbrugere.
+          </div>
+        ) : (
+          users.map((u) => (
+            <div
+              key={u.id}
+              className="grid grid-cols-[1fr_1fr_1fr_auto] gap-3 border-b border-zinc-100 px-4 py-3 text-sm"
+            >
+              <div>
+                <div className="font-medium">{u.username}</div>
+                <div className="text-xs text-zinc-600">{u.email}</div>
+              </div>
+              <div>{u.league?.name ?? ""}</div>
+              <div>{u.team?.name ?? ""}</div>
+              <div className="flex justify-end gap-2">
+                <button
+                  type="button"
+                  onClick={() => decide(u.id, true)}
+                  className="rounded-md bg-[var(--brand)] px-3 py-1.5 text-xs font-semibold text-[var(--brand-foreground)]"
+                >
+                  Godkend
+                </button>
+                <button
+                  type="button"
+                  onClick={() => decide(u.id, false)}
+                  className="rounded-md border border-zinc-300 bg-white px-3 py-1.5 text-xs font-semibold"
+                >
+                  Afvis
+                </button>
+              </div>
+            </div>
+          ))
+        )}
+      </div>
     </main>
   );
 }

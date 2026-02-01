@@ -28,9 +28,14 @@ async function main() {
       "generate",
     ], "prisma generate");
 
+    const bundler = (process.env.NEXT_DEV_BUNDLER ?? "webpack").toLowerCase();
+    const bundlerArgs =
+      bundler === "turbopack" || bundler === "turbo" ? ["--turbo"] : ["--webpack"];
+
     await runNodeScript([
       "./node_modules/next/dist/bin/next",
       "dev",
+      ...bundlerArgs,
     ], "next dev");
   } catch (err) {
     console.error(String(err?.message ?? err));

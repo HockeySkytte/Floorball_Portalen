@@ -4,14 +4,12 @@ import { getCurrentUser } from "@/lib/auth";
 
 export default async function Home() {
   const user = await getCurrentUser();
-  if (user) redirect("/statistik");
+  if (user) redirect("/kalender");
 
   return (
     <main className="mx-auto max-w-3xl px-4 py-12">
-      <h1 className="text-2xl font-semibold">Floorball Platform</h1>
-      <p className="mt-2 text-zinc-600">
-        Log ind eller opret en bruger til dit hold.
-      </p>
+      <h1 className="text-2xl font-semibold">Floorball Portalen</h1>
+      <p className="mt-2 text-zinc-600">Log ind eller opret en bruger.</p>
 
       <div className="mt-6 flex gap-3">
         <Link

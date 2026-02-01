@@ -2,40 +2,35 @@
 
 import Link from "next/link";
 import { useState } from "react";
-import { usePathname, useSearchParams } from "next/navigation";
+import LeagueSlicer, { type LeagueOption } from "@/components/LeagueSlicer";
 import TeamSlicer, { type TeamOption } from "@/components/TeamSlicer";
-import StatsSidebarSlicers from "@/components/stats/StatsSidebarSlicers";
-import PlayerSlicer from "@/components/PlayerSlicer";
-import SpillerVideoSidebarSlicers from "@/components/spiller/SpillerVideoSidebarSlicers";
+import GenderSlicer from "@/components/GenderSlicer";
 
 export type MobileAppHeaderUser = {
   username: string;
-  teamRole: string | null;
 };
 
 export default function MobileAppHeader({
   user,
   isAdmin,
+  leagues,
+  selectedLeagueId,
   teams,
   selectedTeamId,
+  selectedGender,
   logoUrl,
-  leaderPendingCount,
-  adminPendingLeadersCount,
 }: {
   user: MobileAppHeaderUser;
   isAdmin: boolean;
+  leagues: LeagueOption[];
+  selectedLeagueId: string | null;
   teams: TeamOption[];
   selectedTeamId: string | null;
+  selectedGender: "MEN" | "WOMEN" | null;
   logoUrl: string | null;
-  leaderPendingCount?: number;
-  adminPendingLeadersCount?: number;
 }) {
-  const pathname = usePathname();
-  const searchParams = useSearchParams();
   const [filtersOpen, setFiltersOpen] = useState(true);
   const [menuOpen, setMenuOpen] = useState(false);
-  const isSpiller = pathname === "/spiller" || pathname.startsWith("/spiller/");
-  const spillerTab = String(searchParams.get("tab") ?? "").toLowerCase();
 
   async function logout() {
     await fetch("/api/auth/logout", { method: "POST" });
@@ -78,7 +73,7 @@ export default function MobileAppHeader({
                   }}
                 />
               ) : null}
-              <span>Floorball</span>
+              <span>Floorball Portalen</span>
             </div>
             <div className="mt-1 text-sm opacity-80">{user.username}</div>
           </div>
@@ -112,24 +107,24 @@ export default function MobileAppHeader({
               <nav className="divide-y divide-white/10">
                 <Link
                   className="block px-4 py-4 text-lg font-semibold"
+                  href="/kalender"
+                  onClick={closeMenu}
+                >
+                  Kalender
+                </Link>
+                <Link
+                  className="block px-4 py-4 text-lg font-semibold"
+                  href="/stilling"
+                  onClick={closeMenu}
+                >
+                  Stilling
+                </Link>
+                <Link
+                  className="block px-4 py-4 text-lg font-semibold"
                   href="/statistik"
                   onClick={closeMenu}
                 >
                   Statistik
-                </Link>
-                <Link
-                  className="block px-4 py-4 text-lg font-semibold"
-                  href="/kampe"
-                  onClick={closeMenu}
-                >
-                  Kampe
-                </Link>
-                <Link
-                  className="block px-4 py-4 text-lg font-semibold"
-                  href="/spiller"
-                  onClick={closeMenu}
-                >
-                  Spiller
                 </Link>
                 {isAdmin ? (
                   <Link
@@ -137,32 +132,17 @@ export default function MobileAppHeader({
                     href="/admin"
                     onClick={closeMenu}
                   >
-                    <span className="flex items-center justify-between gap-3">
-                      <span>Admin</span>
-                      {(adminPendingLeadersCount ?? 0) > 0 ? (
-                        <span className="inline-grid min-w-[20px] place-items-center rounded-full bg-red-600 px-1.5 text-xs font-bold leading-5 text-white">
-                          {adminPendingLeadersCount}
-                        </span>
-                      ) : null}
-                    </span>
+                    Admin
                   </Link>
                 ) : null}
-                {user.teamRole === "LEADER" ? (
-                  <Link
-                    className="block px-4 py-4 text-lg font-semibold"
-                    href="/leder"
-                    onClick={closeMenu}
-                  >
-                    <span className="flex items-center justify-between gap-3">
-                      <span>Leder</span>
-                      {(leaderPendingCount ?? 0) > 0 ? (
-                        <span className="inline-grid min-w-[20px] place-items-center rounded-full bg-red-600 px-1.5 text-xs font-bold leading-5 text-white">
-                          {leaderPendingCount}
-                        </span>
-                      ) : null}
-                    </span>
-                  </Link>
-                ) : null}
+
+                <Link
+                  className="block px-4 py-4 text-lg font-semibold"
+                  href="/indstillinger"
+                  onClick={closeMenu}
+                >
+                  Indstillinger
+                </Link>
 
                 <button
                   type="button"
@@ -171,14 +151,6 @@ export default function MobileAppHeader({
                 >
                   Log ud
                 </button>
-
-                <Link
-                  className="block px-4 py-4 text-lg font-semibold"
-                  href="/tilfoej-rolle"
-                  onClick={closeMenu}
-                >
-                  Tilføj Rolle
-                </Link>
               </nav>
             </div>
           </div>
@@ -189,25 +161,27 @@ export default function MobileAppHeader({
           <div className="mt-5 px-5 pb-5">
             <div className="flex items-center justify-between rounded-full border border-white/15 bg-white/5 px-4 py-3">
               <div className="text-sm font-semibold opacity-90">
-                {teams.find((t) => t.id === selectedTeamId)?.name ?? ""}
+                {leagues.find((l) => l.id === selectedLeagueId)?.name ?? ""}
               </div>
             </div>
 
             <div className="mt-4">
+              <GenderSlicer selectedGender={selectedGender} />
+            </div>
+
+            <div className="mt-4">
+              <LeagueSlicer
+                leagues={leagues}
+                selectedLeagueId={selectedLeagueId}
+              />
+            </div>
+
+            <div className="mt-4">
               <TeamSlicer
-                isAdmin={isAdmin}
                 teams={teams}
                 selectedTeamId={selectedTeamId}
               />
             </div>
-
-            {pathname === "/statistik" || pathname.startsWith("/statistik/") ? (
-              <StatsSidebarSlicers />
-            ) : null}
-
-            {isSpiller ? <PlayerSlicer /> : null}
-
-            {isSpiller && spillerTab === "video" ? <SpillerVideoSidebarSlicers /> : null}
           </div>
         ) : null}
       </div>

@@ -28,7 +28,7 @@ export default function LoginPage() {
         return;
       }
 
-      router.push("/statistik");
+      router.push("/kalender");
       router.refresh();
     } finally {
       setLoading(false);

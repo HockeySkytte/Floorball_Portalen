@@ -1,3 +1,4 @@
+/*
 import { NextResponse } from "next/server";
 import { requireAdmin } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
@@ -157,4 +158,22 @@ export async function DELETE(
 
   await prisma.team.delete({ where: { id } });
   return NextResponse.json({ ok: true });
+}
+
+*/
+
+import { NextResponse } from "next/server";
+
+export async function PATCH() {
+  return NextResponse.json(
+    { message: "Legacy endpoint (admin teams) is disabled in Floorball Portalen." },
+    { status: 410 }
+  );
+}
+
+export async function DELETE() {
+  return NextResponse.json(
+    { message: "Legacy endpoint (admin teams) is disabled in Floorball Portalen." },
+    { status: 410 }
+  );
 }
