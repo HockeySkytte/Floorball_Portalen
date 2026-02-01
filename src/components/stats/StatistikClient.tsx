@@ -79,6 +79,11 @@ function classifyShotKind(event: string): ShotKind {
   return "SHOT";
 }
 
+function isShotLikeEvent(event: string) {
+  const e = String(event ?? "").trim().toLowerCase();
+  return e.includes("goal") || e.includes("shot") || e.includes("miss") || e.includes("block") || e.includes("penalty");
+}
+
 function isFiniteNumber(n: unknown): n is number {
   return typeof n === "number" && Number.isFinite(n);
 }
@@ -95,11 +100,11 @@ function toHalfRinkPoint(
 
   if (half === "left") {
     if (x > 0) return null;
-    return { x: (x + 20) / 20, y: (y + 10) / 20 };
+    return { x: (x + 20) / 20, y: (-y + 10) / 20 };
   }
 
   if (x < 0) return null;
-  return { x: x / 20, y: (y + 10) / 20 };
+  return { x: x / 20, y: (-y + 10) / 20 };
 }
 
 function clamp(v: number, min: number, max: number) {
@@ -581,7 +586,7 @@ function HalfRink({
   half: "left" | "right";
   events: StatsEvent[];
   selectedTeam: string;
-  flipByPeriod: Map<number, boolean>;
+  flipByPeriod: Map<string, boolean>;
   teamColors: Map<string, string>;
   selectedEventIds: Set<string>;
   onToggleEvent: (eventId: string) => void;
@@ -603,8 +608,8 @@ function HalfRink({
     for (const e of events) {
       if (!isFiniteNumber(e.xM) || !isFiniteNumber(e.yM)) continue;
 
-      const periodKey = e.period ?? 0;
-      const flip = flipByPeriod.get(periodKey) ?? false;
+      const flipKey = `${String(e.gameId ?? "")}\u007c${String(e.period ?? 0)}`;
+      const flip = flipByPeriod.get(flipKey) ?? false;
       const xAdj = flip ? -e.xM : e.xM;
       const yAdj = flip ? -e.yM : e.yM;
 
@@ -1532,7 +1537,7 @@ export default function StatistikClient({ isLeader }: { isLeader: boolean }) {
 
     return events.filter((e) => {
       // Only show shot-like events on the map
-      void classifyShotKind(e.event);
+      if (!isShotLikeEvent(e.event)) return false;
 
       if (gameSel && norm(e.gameId) !== gameSel) return false;
 
@@ -1570,18 +1575,18 @@ export default function StatistikClient({ isLeader }: { isLeader: boolean }) {
 
   const shotMapFlipByPeriod = useMemo(() => {
     const selectedTeam = String(filters.perspektiv ?? "").trim();
-    const sums = new Map<number, number>();
+    const sums = new Map<string, number>();
     for (const e of shotMapEvents) {
       if (String(e.teamName ?? "").trim() !== selectedTeam) continue;
       const kind = classifyShotKind(e.event);
       if (kind === "PENALTY") continue;
-      const periodKey = e.period ?? 0;
-      sums.set(periodKey, (sums.get(periodKey) ?? 0) + (e.xM ?? 0));
+      const flipKey = `${String(e.gameId ?? "")}\u007c${String(e.period ?? 0)}`;
+      sums.set(flipKey, (sums.get(flipKey) ?? 0) + (e.xM ?? 0));
     }
 
-    const flip = new Map<number, boolean>();
-    for (const [p, sumX] of sums.entries()) {
-      flip.set(p, sumX < 0);
+    const flip = new Map<string, boolean>();
+    for (const [key, sumX] of sums.entries()) {
+      flip.set(key, sumX < 0);
     }
     return flip;
   }, [shotMapEvents, filters.perspektiv]);
@@ -1645,8 +1650,8 @@ export default function StatistikClient({ isLeader }: { isLeader: boolean }) {
         continue;
       }
 
-      const periodKey = e.period ?? 0;
-      const flip = shotMapFlipByPeriod.get(periodKey) ?? false;
+      const flipKey = `${String(e.gameId ?? "")}\u007c${String(e.period ?? 0)}`;
+      const flip = shotMapFlipByPeriod.get(flipKey) ?? false;
       const xAdj = flip ? -e.xM : e.xM;
       const yAdj = flip ? -e.yM : e.yM;
       const zoneId = findZone(xAdj, yAdj);

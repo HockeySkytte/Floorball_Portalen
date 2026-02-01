@@ -5,6 +5,23 @@ import { parseCsv, toDate, toFloat, toInt } from "@/lib/csv";
 
 type UploadKind = "EVENTS" | "PLAYERS";
 
+function toLooseInt(value: string | undefined): number | null {
+  if (!value) return null;
+  const m = String(value).match(/-?\d+/);
+  if (!m) return null;
+  const n = Number.parseInt(m[0]!, 10);
+  return Number.isFinite(n) ? n : null;
+}
+
+function toLooseFloat(value: string | undefined): number | null {
+  if (!value) return null;
+  const s = String(value).trim();
+  if (!s) return null;
+  const normalized = s.includes(",") && !s.includes(".") ? s.replace(/,/g, ".") : s;
+  const n = Number.parseFloat(normalized);
+  return Number.isFinite(n) ? n : null;
+}
+
 function canonicalKey(key: string) {
   return key.toLowerCase().replace(/[^a-z0-9]/g, "");
 }
@@ -103,7 +120,7 @@ export async function POST(req: Request) {
           venue: getValue(row, ["venue"]) ?? null,
           teamHome: getValue(row, ["teamHome", "homeTeam"]) ?? null,
           teamAway: getValue(row, ["teamAway", "awayTeam"]) ?? null,
-          period: toInt(getValue(row, ["period", "prd"])) ?? null,
+          period: toLooseInt(getValue(row, ["period", "prd"])) ?? null,
           perspective: getValue(row, ["perspective"]) ?? null,
           strength: getValue(row, ["strength"]) ?? null,
           p1No: toInt(getValue(row, ["p1No", "p1Number", "player1No"])) ?? null,
@@ -118,15 +135,15 @@ export async function POST(req: Request) {
           awayLine: getValue(row, ["awayLine"]) ?? null,
           awayPlayers: getValue(row, ["awayPlayers"]) ?? null,
           awayPlayersNames: getValue(row, ["awayPlayersNames"]) ?? null,
-          xM: toFloat(getValue(row, ["xM", "x", "x_m"])) ?? null,
-          yM: toFloat(getValue(row, ["yM", "y", "y_m"])) ?? null,
+          xM: toLooseFloat(getValue(row, ["xM", "x", "x_m"])) ?? null,
+          yM: toLooseFloat(getValue(row, ["yM", "y", "y_m"])) ?? null,
           gameId: gameId ?? null,
           gameDate,
           competition: competition ?? null,
           videoUrl: getValue(row, ["videoUrl", "video", "video_url", "videoUrlRaw", "videoLink"]) ?? null,
           videoTime: toInt(getValue(row, ["videoTime", "videoSeconds", "video_time", "videoTimestamp"])) ?? null,
-          aimX: toFloat(getValue(row, ["aimX"])) ?? null,
-          aimY: toFloat(getValue(row, ["aimY"])) ?? null,
+          aimX: toLooseFloat(getValue(row, ["aimX"])) ?? null,
+          aimY: toLooseFloat(getValue(row, ["aimY"])) ?? null,
         };
       })
       .filter((x) => x !== null);
