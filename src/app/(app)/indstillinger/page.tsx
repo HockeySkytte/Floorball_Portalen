@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { getCurrentUser } from "@/lib/auth";
 import { getSession } from "@/lib/session";
 import IndstillingerClient from "./IndstillingerClient";
+import { getCompetitionFilterContext } from "@/lib/competitionFilters";
 
 export default async function IndstillingerPage() {
   const user = await getCurrentUser();
@@ -13,27 +14,56 @@ export default async function IndstillingerPage() {
 
   const session = await getSession();
 
-  const leagues = await prisma.league.findMany({
-    select: { id: true, name: true },
-    orderBy: { name: "asc" },
+  const currentSeason = await prisma.competitionSeason.findFirst({
+    where: { isCurrent: true },
+    select: { id: true },
   });
 
-  const teams = await prisma.team.findMany({
-    select: { id: true, name: true, leagueId: true },
-    orderBy: [{ leagueId: "asc" }, { name: "asc" }],
-  });
+  const rows = currentSeason
+    ? await prisma.competitionRow.findMany({
+        where: { seasonId: currentSeason.id, pools: { some: {} } },
+        select: { id: true, name: true, gender: true, ageGroup: true },
+        orderBy: [{ gender: "asc" }, { name: "asc" }],
+      })
+    : [];
 
-  const initialLeagueId = session.selectedLeagueId ?? user.leagueId ?? leagues[0]?.id ?? null;
-  const initialTeamId = session.selectedTeamId ?? user.teamId ?? null;
-  const initialGender = (session.selectedGender ?? user.gender ?? "MEN") as "MEN" | "WOMEN";
+  const pools = currentSeason
+    ? await prisma.competitionPool.findMany({
+        where: { row: { seasonId: currentSeason.id }, teams: { some: {} } },
+        select: { id: true, name: true, rowId: true },
+        orderBy: [{ rowId: "asc" }, { name: "asc" }],
+      })
+    : [];
+
+  const poolTeams = currentSeason
+    ? await prisma.competitionPoolTeam.findMany({
+        where: { pool: { row: { seasonId: currentSeason.id } } },
+        select: { poolId: true, name: true, rank: true },
+        orderBy: [{ poolId: "asc" }, { rank: "asc" }, { name: "asc" }],
+      })
+    : [];
+
+  const ctx = await getCompetitionFilterContext({
+    user: {
+      gender: user.gender,
+      ageGroup: user.ageGroup,
+      competitionRowId: user.competitionRowId,
+      competitionPoolId: user.competitionPoolId,
+      competitionTeamName: user.competitionTeamName,
+    },
+    session,
+  });
 
   return (
     <IndstillingerClient
-      leagues={leagues}
-      teams={teams}
-      initialLeagueId={initialLeagueId}
-      initialTeamId={initialTeamId}
-      initialGender={initialGender}
+      rows={rows}
+      pools={pools}
+      poolTeams={poolTeams}
+      initialGender={ctx.selectedGender}
+      initialAgeGroup={ctx.selectedAgeGroup}
+      initialRowId={ctx.selectedRowId}
+      initialPoolId={ctx.selectedPoolId}
+      initialTeamName={ctx.selectedTeamName}
     />
   );
 }

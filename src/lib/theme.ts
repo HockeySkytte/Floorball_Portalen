@@ -7,6 +7,11 @@ export async function getThemeTeam() {
   if (user?.activeTeam) return user.activeTeam;
 
   const session = await getSession();
+
+  // Guests always use the red brand as primary.
+  if (!session.userId) {
+    return { themePrimary: "RED", themeSecondary: "WHITE" };
+  }
   if (!session.selectedTeamId) return null;
 
   const team = await prisma.team.findUnique({

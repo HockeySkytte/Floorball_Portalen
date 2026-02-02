@@ -34,6 +34,215 @@ enum Gender {
   WOMEN
 }
 
+enum AgeGroup {
+  OLDIES
+  SENIOR
+  U21
+  U19
+  U17
+  U15
+  U13
+  U12
+  U11
+  U10
+  U9
+  U8
+  U7
+  U5
+}
+
+model CompetitionSeason {
+  id        String   @id @default(cuid())
+  startYear Int      @unique
+  label     String
+  isCurrent Boolean  @default(false)
+
+  rows      CompetitionRow[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model CompetitionRow {
+  id        String   @id @default(cuid())
+  raekkeId  Int      @unique
+  name      String
+
+  gender    Gender
+  ageGroup  AgeGroup
+
+  seasonId  String
+  season    CompetitionSeason @relation(fields: [seasonId], references: [id], onDelete: Cascade)
+
+  pools     CompetitionPool[]
+  users     User[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([gender, ageGroup, seasonId])
+}
+
+model CompetitionPool {
+  id       String @id @default(cuid())
+  puljeId  Int    @unique
+  name     String
+
+  rowId    String
+  row      CompetitionRow @relation(fields: [rowId], references: [id], onDelete: Cascade)
+
+  teams    CompetitionPoolTeam[]
+  matches  CompetitionMatch[]
+  users    User[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([rowId])
+}
+
+model CompetitionPoolTeam {
+  id       String @id @default(cuid())
+
+  poolId   String
+  pool     CompetitionPool @relation(fields: [poolId], references: [id], onDelete: Cascade)
+
+  name     String
+  rank     Int?
+  played   Int?
+  wins     Int?
+  draws    Int?
+  losses   Int?
+  goalsFor Int?
+  goalsAgainst Int?
+  points   Int?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([poolId, name])
+  @@index([poolId, rank])
+}
+
+model CompetitionMatch {
+  id      String @id @default(cuid())
+
+  kampId  Int    @unique
+  matchNo Int?
+
+  poolId  String
+  pool    CompetitionPool @relation(fields: [poolId], references: [id], onDelete: Cascade)
+
+  startAt DateTime?
+  venue   String?
+
+  homeTeam String
+  awayTeam String
+  homeScore Int?
+  awayScore Int?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([poolId, startAt])
+}
+
+enum MatchProtocolSide {
+  HOME
+  AWAY
+}
+
+model MatchProtocolPlayer {
+  id       String @id @default(cuid())
+
+  kampId   Int
+  side     MatchProtocolSide
+  rowIndex Int
+
+  role     String?
+  number   String?
+  name     String?
+  born     String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([kampId, side, rowIndex])
+  @@index([kampId, side])
+}
+
+model MatchProtocolEvent {
+  id       String @id @default(cuid())
+
+  kampId   Int
+  rowIndex Int
+
+  period   String?
+  time     String?
+  side     String?
+  number   String?
+  goal     String?
+  assist   String?
+  penalty  String?
+  code     String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([kampId, rowIndex])
+  @@index([kampId])
+}
+
+model MatchUploadLineup {
+  id       String @id @default(cuid())
+
+  kampId   Int
+  rowIndex Int
+
+  date     DateTime?
+  liga     String
+  pulje    String
+  venue    String
+
+  cG       String?
+  number   String?
+  name     String?
+  birthday String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([kampId, venue, rowIndex])
+  @@index([kampId])
+}
+
+model MatchUploadEvent {
+  id       String @id @default(cuid())
+
+  kampId   Int
+  rowIndex Int
+
+  date     DateTime?
+  liga     String
+  pulje    String
+  venue    String
+
+  period   String?
+  time     String?
+  player1  String?
+  player2  String?
+  score    String?
+  event    String?
+  pim      String?
+  code     String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([kampId, rowIndex])
+  @@index([kampId])
+}
+
 enum TeamColor {
   RED
   WHITE
@@ -216,6 +425,15 @@ model User {
   imageUrl     String?
 
   gender       Gender         @default(MEN)
+  ageGroup     AgeGroup       @default(SENIOR)
+
+  competitionRowId  String?
+  competitionRow    CompetitionRow? @relation(fields: [competitionRowId], references: [id], onDelete: SetNull)
+
+  competitionPoolId String?
+  competitionPool   CompetitionPool? @relation(fields: [competitionPoolId], references: [id], onDelete: SetNull)
+
+  competitionTeamName String?
 
   position     String?
   birthDate    DateTime?

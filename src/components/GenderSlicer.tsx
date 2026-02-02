@@ -1,7 +1,6 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useState } from "react";
 
 export type GenderOption = {
   id: "MEN" | "WOMEN";
@@ -19,13 +18,9 @@ export default function GenderSlicer({
   selectedGender: "MEN" | "WOMEN" | null;
 }) {
   const router = useRouter();
-  const [value, setValue] = useState<"MEN" | "WOMEN">(
-    selectedGender ?? "MEN"
-  );
+  const value = selectedGender ?? "MEN";
 
   async function onChange(next: "MEN" | "WOMEN") {
-    setValue(next);
-
     await fetch("/api/ui/select-gender", {
       method: "POST",
       headers: { "Content-Type": "application/json" },

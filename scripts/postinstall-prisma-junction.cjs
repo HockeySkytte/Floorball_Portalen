@@ -15,7 +15,20 @@ const src = path.join(root, "node_modules", ".prisma");
 const dest = path.join(root, "node_modules", "@prisma", "client", ".prisma");
 
 if (!exists(src)) process.exit(0);
-if (exists(dest)) process.exit(0);
+if (exists(dest)) {
+  try {
+    const stat = fs.lstatSync(dest);
+    if (stat.isSymbolicLink()) process.exit(0);
+  } catch {
+    // ignore
+  }
+
+  try {
+    fs.rmSync(dest, { recursive: true, force: true });
+  } catch {
+    // ignore
+  }
+}
 
 try {
   fs.mkdirSync(path.dirname(dest), { recursive: true });

@@ -646,10 +646,44 @@ type PendingSuperuser = {
   team: { name: string } | null;
 };
 
+type SyncSportssysResponse =
+  | {
+      ok: true;
+      season: { startYear: number; label: string };
+      counts: { rows: number; pools: number; teams: number; matches: number };
+    }
+  | { ok?: false; message?: string };
+
+type SyncSportssysHistoryResponse =
+  | {
+      ok: true;
+      currentSeason: { startYear: number; label: string } | null;
+      counts: {
+        seasons: number;
+        rows: number;
+        pools: number;
+        teams: number;
+        matches: number;
+      };
+    }
+  | { ok?: false; message?: string };
+
 export default function AdminPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [users, setUsers] = useState<PendingSuperuser[]>([]);
+
+  const [syncing, setSyncing] = useState(false);
+  const [syncError, setSyncError] = useState<string | null>(null);
+  const [syncResult, setSyncResult] = useState<
+    Extract<SyncSportssysResponse, { ok: true }> | null
+  >(null);
+
+  const [syncingHistory, setSyncingHistory] = useState(false);
+  const [syncHistoryError, setSyncHistoryError] = useState<string | null>(null);
+  const [syncHistoryResult, setSyncHistoryResult] = useState<
+    Extract<SyncSportssysHistoryResponse, { ok: true }> | null
+  >(null);
 
   async function load() {
     setLoading(true);
@@ -691,10 +725,135 @@ export default function AdminPage() {
     await load();
   }
 
+  async function syncSportssys() {
+    setSyncError(null);
+    setSyncResult(null);
+
+    const ok = window.confirm(
+      "Sync henter data fra Sportssys og kan tage lidt tid. Vil du fortsætte?"
+    );
+    if (!ok) return;
+
+    setSyncing(true);
+    try {
+      const res = await fetch("/api/admin/sync-sportssys", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+      });
+
+      const data = (await res.json().catch(() => ({}))) as SyncSportssysResponse;
+      if (!res.ok || !data || data.ok !== true) {
+        setSyncError(
+          (data as { message?: string })?.message ?? "Kunne ikke synce Sportssys."
+        );
+        return;
+      }
+
+      setSyncResult(data);
+    } finally {
+      setSyncing(false);
+    }
+  }
+
+  async function syncSportssysHistory() {
+    setSyncHistoryError(null);
+    setSyncHistoryResult(null);
+
+    const ok = window.confirm(
+      "Sync tidligere sæsoner kan tage lang tid (flere minutter). Den henter og gemmer stillinger og kampe for alle tidligere sæsoner. Vil du fortsætte?"
+    );
+    if (!ok) return;
+
+    setSyncingHistory(true);
+    try {
+      const res = await fetch("/api/admin/sync-sportssys-history", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+      });
+
+      const data = (await res.json().catch(() => ({}))) as SyncSportssysHistoryResponse;
+      if (!res.ok || !data || data.ok !== true) {
+        setSyncHistoryError(
+          (data as { message?: string })?.message ??
+            "Kunne ikke synce tidligere sæsoner fra Sportssys."
+        );
+        return;
+      }
+
+      setSyncHistoryResult(data);
+    } finally {
+      setSyncingHistory(false);
+    }
+  }
+
   return (
     <main className="mx-auto max-w-4xl px-4 py-8">
       <h1 className="text-2xl font-semibold">Admin</h1>
       <p className="mt-2 text-sm text-zinc-600">Godkend superbrugere.</p>
+
+      <section className="mt-6 rounded-lg border border-zinc-200 bg-white p-4">
+        <div className="flex flex-col gap-1">
+          <div className="text-sm font-semibold">Sportssys</div>
+          <div className="text-sm text-zinc-600">
+            Nuværende sæson: sync bruges til slicere/puljeId (kalender/stilling hentes live). Tidligere sæsoner: sync gemmer også kampe/stillinger i databasen.
+          </div>
+        </div>
+
+        <div className="mt-3 flex flex-wrap items-center gap-3">
+          <button
+            type="button"
+            onClick={syncSportssys}
+            disabled={syncing}
+            className="rounded-md bg-[var(--brand)] px-4 py-2 text-sm font-semibold text-[var(--brand-foreground)] disabled:opacity-50"
+          >
+            {syncing ? "Synker..." : "Sync Sportssys"}
+          </button>
+
+          <button
+            type="button"
+            onClick={syncSportssysHistory}
+            disabled={syncingHistory}
+            className="rounded-md border border-zinc-300 bg-white px-4 py-2 text-sm font-semibold text-zinc-900 disabled:opacity-50"
+          >
+            {syncingHistory ? "Synker..." : "Sync tidligere Sæsoner"}
+          </button>
+          {syncing ? (
+            <div className="text-sm text-zinc-600">Dette kan tage 10-60 sek.</div>
+          ) : null}
+          {syncingHistory ? (
+            <div className="text-sm text-zinc-600">Dette kan tage flere minutter.</div>
+          ) : null}
+        </div>
+
+        {syncError ? <p className="mt-3 text-sm text-red-600">{syncError}</p> : null}
+        {syncResult ? (
+          <div className="mt-3 text-sm text-zinc-800">
+            <div className="font-medium">
+              Synced sæson: {syncResult.season.label} ({syncResult.season.startYear})
+            </div>
+            <div className="mt-1 text-zinc-700">
+              Rækker: {syncResult.counts.rows} · Puljer: {syncResult.counts.pools} · Hold:
+              {" "}
+              {syncResult.counts.teams} · Kampe: {syncResult.counts.matches}
+            </div>
+          </div>
+        ) : null}
+
+        {syncHistoryError ? (
+          <p className="mt-3 text-sm text-red-600">{syncHistoryError}</p>
+        ) : null}
+        {syncHistoryResult ? (
+          <div className="mt-3 text-sm text-zinc-800">
+            <div className="font-medium">
+              Synced tidligere sæsoner: {syncHistoryResult.counts.seasons}
+            </div>
+            <div className="mt-1 text-zinc-700">
+              Rækker: {syncHistoryResult.counts.rows} · Puljer: {syncHistoryResult.counts.pools} · Hold: {" "}
+              {syncHistoryResult.counts.teams} · Kampe: {syncHistoryResult.counts.matches}
+            </div>
+          </div>
+        ) : null}
+      </section>
 
       <div className="mt-6 flex items-center gap-3">
         <button
@@ -703,7 +862,7 @@ export default function AdminPage() {
           disabled={loading}
           className="rounded-md border border-zinc-300 bg-white px-4 py-2 text-sm disabled:opacity-50"
         >
-          {loading ? "Henter..." : "Genindl6s"}
+          {loading ? "Henter..." : "Genindlæs"}
         </button>
       </div>
 

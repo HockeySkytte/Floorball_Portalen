@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import { getThemeTeam } from "@/lib/theme";
+import { getSession } from "@/lib/session";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -24,12 +25,15 @@ export default async function RootLayout({
   children: React.ReactNode;
 }>) {
   const themeTeam = await getThemeTeam();
+  const session = await getSession();
+  const viewMode = session.selectedViewMode ?? "LIGHT";
 
   return (
     <html
       lang="da"
       data-team-primary={themeTeam?.themePrimary ?? undefined}
       data-team-secondary={themeTeam?.themeSecondary ?? undefined}
+      data-view={viewMode}
     >
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}

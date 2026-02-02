@@ -8,10 +8,14 @@ export type TopNavUser = {
   isAdmin: boolean;
 };
 
+export type ViewMode = "LIGHT" | "DARK";
+
 export default function TopNav({
   user,
+  viewMode,
 }: {
   user: TopNavUser | null;
+  viewMode: ViewMode;
 }) {
   const mobileMenuRef = useRef<HTMLDetailsElement | null>(null);
   const userMenuRef = useRef<HTMLDetailsElement | null>(null);
@@ -25,6 +29,15 @@ export default function TopNav({
   async function logout() {
     await fetch("/api/auth/logout", { method: "POST" });
     window.location.href = "/login";
+  }
+
+  async function setViewMode(mode: ViewMode) {
+    await fetch("/api/ui/select-view-mode", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ mode }),
+    });
+    window.location.reload();
   }
 
   return (
@@ -42,6 +55,15 @@ export default function TopNav({
             <Link className="hover:underline" href="/statistik">
               Statistik
             </Link>
+
+            <a
+              className="hover:underline"
+              href="https://sports-tagging.netlify.app/floorball/"
+              target="_blank"
+              rel="noreferrer noopener"
+            >
+              Shot Plotter
+            </a>
 
             {user?.isAdmin ? (
               <Link className="hover:underline" href="/admin">
@@ -79,6 +101,16 @@ export default function TopNav({
                   Statistik
                 </Link>
 
+                <a
+                  className="rounded px-2 py-1 hover:bg-zinc-50"
+                  href="https://sports-tagging.netlify.app/floorball/"
+                  target="_blank"
+                  rel="noreferrer noopener"
+                  onClick={() => closeDetails(mobileMenuRef)}
+                >
+                  Shot Plotter
+                </a>
+
                 {user?.isAdmin ? (
                   <Link
                     className="rounded px-2 py-1 hover:bg-zinc-50"
@@ -114,6 +146,31 @@ export default function TopNav({
         </div>
 
         <div className="flex items-center gap-3 text-base">
+          <div className="flex overflow-hidden rounded-md border border-zinc-300 bg-white text-sm text-zinc-900">
+            <button
+              type="button"
+              onClick={() => void setViewMode("LIGHT")}
+              className={
+                "px-2.5 py-1.5 font-semibold " +
+                (viewMode === "LIGHT" ? "bg-[color:var(--brand)] text-[var(--brand-foreground)]" : "hover:bg-zinc-50")
+              }
+              title="Light"
+            >
+              Light
+            </button>
+            <button
+              type="button"
+              onClick={() => void setViewMode("DARK")}
+              className={
+                "px-2.5 py-1.5 font-semibold " +
+                (viewMode === "DARK" ? "bg-[color:var(--brand)] text-[var(--brand-foreground)]" : "hover:bg-zinc-50")
+              }
+              title="Dark"
+            >
+              Dark
+            </button>
+          </div>
+
           {user ? (
             <details ref={userMenuRef} className="relative">
               <summary className="cursor-pointer list-none font-medium select-none">

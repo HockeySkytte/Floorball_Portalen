@@ -1,55 +1,39 @@
-import { redirect } from "next/navigation";
-import { getCurrentUser } from "@/lib/auth";
-import { prisma } from "@/lib/prisma";
-import { getSession } from "@/lib/session";
 import Link from "next/link";
 import TopNav from "@/components/TopNav";
 import MobileAppHeader from "@/components/MobileAppHeader";
 import AppSidebarContent from "@/components/AppSidebarContent";
+import { redirect } from "next/navigation";
+import { getAppContext } from "@/lib/appContext";
+import GuestDefaultsBootstrap from "@/components/GuestDefaultsBootstrap";
 
 export default async function AppLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
-  const user = await getCurrentUser();
-  if (!user) redirect("/login");
-  if (user.isSuperuser && !user.isSuperuserApproved && !user.isAdmin) {
+  const { user, ctx, calendarMode, statsAggregationMode, viewMode } = await getAppContext();
+
+  if (user?.isSuperuser && !user.isSuperuserApproved && !user.isAdmin) {
     redirect("/afventer");
   }
 
-  const isAdmin = user.isAdmin;
-  const session = await getSession();
+  const isAdmin = user?.isAdmin ?? false;
 
-  const leagues = await prisma.league.findMany({
-    select: { id: true, name: true },
-    orderBy: { name: "asc" },
-  });
+  const {
+    seasons,
+    selectedSeasonStartYear,
+    selectedGender,
+    ageGroups,
+    selectedAgeGroup,
+    rows,
+    selectedRowId,
+    pools,
+    selectedPoolId,
+    poolTeams,
+    selectedTeamName,
+  } = ctx;
 
-  const selectedGender = session.selectedGender ?? user.gender ?? "MEN";
-
-  let selectedLeagueId: string | null =
-    session.selectedLeagueId ?? user.leagueId ?? leagues[0]?.id ?? null;
-
-  if (selectedLeagueId && !leagues.some((l) => l.id === selectedLeagueId)) {
-    selectedLeagueId = leagues[0]?.id ?? null;
-  }
-
-  const teams = selectedLeagueId
-    ? await prisma.team.findMany({
-        where: { leagueId: selectedLeagueId },
-        select: { id: true, name: true, logoUrl: true },
-        orderBy: { name: "asc" },
-      })
-    : [];
-
-  let selectedTeamId: string | null =
-    session.selectedTeamId ?? user.teamId ?? teams[0]?.id ?? null;
-  if (selectedTeamId && !teams.some((t) => t.id === selectedTeamId)) {
-    selectedTeamId = teams[0]?.id ?? null;
-  }
-
-  const selectedTeamLogoUrl = teams.find((t) => t.id === selectedTeamId)?.logoUrl ?? null;
+  const selectedTeamLogoUrl = null;
 
   return (
     <div className="grid min-h-dvh w-full grid-cols-1 md:grid-cols-[280px_1fr]">
@@ -71,28 +55,49 @@ export default async function AppLayout({
         </Link>
 
         <AppSidebarContent
-          leagues={leagues}
-          selectedLeagueId={selectedLeagueId}
-          teams={teams}
-          selectedTeamId={selectedTeamId}
+          seasons={seasons}
+          selectedSeasonStartYear={selectedSeasonStartYear}
           selectedGender={selectedGender}
+          ageGroups={ageGroups}
+          selectedAgeGroup={selectedAgeGroup}
+          rows={rows}
+          selectedRowId={selectedRowId}
+          pools={pools}
+          selectedPoolId={selectedPoolId}
+          poolTeams={poolTeams}
+          selectedTeamName={selectedTeamName}
+          calendarMode={calendarMode}
+          statsAggregationMode={statsAggregationMode}
         />
       </aside>
 
       {/* Right side: topbar starts AFTER sidebar */}
       <div className="flex min-h-dvh min-w-0 flex-col">
+        <GuestDefaultsBootstrap enabled={!Boolean(user)} />
         <div className="hidden md:block">
-          <TopNav user={{ username: user.username, isAdmin }} />
+          <TopNav
+            viewMode={viewMode}
+            user={user ? { username: user.username, isAdmin } : null}
+          />
         </div>
 
         <MobileAppHeader
-          user={{ username: user.username }}
+          user={user ? { username: user.username } : null}
           isAdmin={isAdmin}
-          leagues={leagues}
-          selectedLeagueId={selectedLeagueId}
-          teams={teams}
-          selectedTeamId={selectedTeamId}
+          viewMode={viewMode}
+          seasons={seasons}
+          selectedSeasonStartYear={selectedSeasonStartYear}
           selectedGender={selectedGender}
+          ageGroups={ageGroups}
+          selectedAgeGroup={selectedAgeGroup}
+          rows={rows}
+          selectedRowId={selectedRowId}
+          pools={pools}
+          selectedPoolId={selectedPoolId}
+          poolTeams={poolTeams}
+          selectedTeamName={selectedTeamName}
+          calendarMode={calendarMode}
+          statsAggregationMode={statsAggregationMode}
           logoUrl={selectedTeamLogoUrl}
         />
 

@@ -1,10 +1,8 @@
 import { NextResponse } from "next/server";
-import { requireApprovedUser } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { getSession } from "@/lib/session";
 
 export async function POST(req: Request) {
-  await requireApprovedUser();
   const body = await req.json().catch(() => null);
   const teamId = String(body?.teamId ?? "").trim();
 
@@ -24,6 +22,7 @@ export async function POST(req: Request) {
   const session = await getSession();
   session.selectedLeagueId = team.leagueId;
   session.selectedTeamId = teamId;
+  if (!session.userId) session.guestDefaultsApplied = true;
   await session.save();
 
   return NextResponse.json({ ok: true });

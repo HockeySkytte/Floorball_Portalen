@@ -2,31 +2,63 @@
 
 import Link from "next/link";
 import { useState } from "react";
-import LeagueSlicer, { type LeagueOption } from "@/components/LeagueSlicer";
-import TeamSlicer, { type TeamOption } from "@/components/TeamSlicer";
+import SeasonSlicer, { type SeasonOption } from "@/components/SeasonSlicer";
 import GenderSlicer from "@/components/GenderSlicer";
+import AgeGroupSlicer from "@/components/AgeGroupSlicer";
+import CompetitionRowSlicer, {
+  type CompetitionRowOption,
+} from "@/components/CompetitionRowSlicer";
+import CompetitionPoolSlicer, {
+  type CompetitionPoolOption,
+} from "@/components/CompetitionPoolSlicer";
+import CompetitionTeamSlicer, {
+  type CompetitionTeamOption,
+} from "@/components/CompetitionTeamSlicer";
+import CalendarModeSlicer, { type CalendarMode } from "@/components/CalendarModeSlicer";
+import StatsAggregationModeSlicer, { type StatsAggregationMode } from "@/components/StatsAggregationModeSlicer";
+import type { AgeGroupValue } from "@/lib/ageGroups";
 
 export type MobileAppHeaderUser = {
   username: string;
 };
 
+export type ViewMode = "LIGHT" | "DARK";
+
 export default function MobileAppHeader({
   user,
   isAdmin,
-  leagues,
-  selectedLeagueId,
-  teams,
-  selectedTeamId,
+  viewMode,
+  seasons,
+  selectedSeasonStartYear,
   selectedGender,
+  ageGroups,
+  selectedAgeGroup,
+  rows,
+  selectedRowId,
+  pools,
+  selectedPoolId,
+  poolTeams,
+  selectedTeamName,
+  calendarMode,
+  statsAggregationMode,
   logoUrl,
 }: {
-  user: MobileAppHeaderUser;
+  user: MobileAppHeaderUser | null;
   isAdmin: boolean;
-  leagues: LeagueOption[];
-  selectedLeagueId: string | null;
-  teams: TeamOption[];
-  selectedTeamId: string | null;
+  viewMode: ViewMode;
+  seasons: SeasonOption[];
+  selectedSeasonStartYear: number | null;
   selectedGender: "MEN" | "WOMEN" | null;
+  ageGroups: Array<{ value: AgeGroupValue; label: string }>;
+  selectedAgeGroup: AgeGroupValue | null;
+  rows: CompetitionRowOption[];
+  selectedRowId: string | null;
+  pools: CompetitionPoolOption[];
+  selectedPoolId: string | null;
+  poolTeams: CompetitionTeamOption[];
+  selectedTeamName: string | null;
+  calendarMode: CalendarMode;
+  statsAggregationMode: StatsAggregationMode;
   logoUrl: string | null;
 }) {
   const [filtersOpen, setFiltersOpen] = useState(true);
@@ -35,6 +67,15 @@ export default function MobileAppHeader({
   async function logout() {
     await fetch("/api/auth/logout", { method: "POST" });
     window.location.href = "/login";
+  }
+
+  async function setViewMode(mode: ViewMode) {
+    await fetch("/api/ui/select-view-mode", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ mode }),
+    });
+    window.location.reload();
   }
 
   function closeMenu() {
@@ -75,7 +116,7 @@ export default function MobileAppHeader({
               ) : null}
               <span>Floorball Portalen</span>
             </div>
-            <div className="mt-1 text-sm opacity-80">{user.username}</div>
+            <div className="mt-1 text-sm opacity-80">{user?.username ?? "Gæst"}</div>
           </div>
 
           <div className="flex gap-3">
@@ -126,6 +167,16 @@ export default function MobileAppHeader({
                 >
                   Statistik
                 </Link>
+
+                <a
+                  className="block px-4 py-4 text-lg font-semibold"
+                  href="https://sports-tagging.netlify.app/floorball/"
+                  target="_blank"
+                  rel="noreferrer noopener"
+                  onClick={closeMenu}
+                >
+                  Shot Plotter
+                </a>
                 {isAdmin ? (
                   <Link
                     className="block px-4 py-4 text-lg font-semibold"
@@ -136,21 +187,59 @@ export default function MobileAppHeader({
                   </Link>
                 ) : null}
 
-                <Link
-                  className="block px-4 py-4 text-lg font-semibold"
-                  href="/indstillinger"
-                  onClick={closeMenu}
-                >
-                  Indstillinger
-                </Link>
+                <div className="px-4 py-4">
+                  <div className="text-sm font-semibold opacity-90">View</div>
+                  <div className="mt-2 flex overflow-hidden rounded-md border border-white/20 bg-white/10">
+                    <button
+                      type="button"
+                      onClick={() => void setViewMode("LIGHT")}
+                      className={
+                        "flex-1 px-3 py-2 text-sm font-semibold " +
+                        (viewMode === "LIGHT" ? "bg-white/20" : "hover:bg-white/10")
+                      }
+                    >
+                      Light
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => void setViewMode("DARK")}
+                      className={
+                        "flex-1 px-3 py-2 text-sm font-semibold " +
+                        (viewMode === "DARK" ? "bg-white/20" : "hover:bg-white/10")
+                      }
+                    >
+                      Dark
+                    </button>
+                  </div>
+                </div>
 
-                <button
-                  type="button"
-                  onClick={logout}
-                  className="block w-full px-4 py-4 text-left text-lg font-semibold"
-                >
-                  Log ud
-                </button>
+                {user ? (
+                  <>
+                    <Link
+                      className="block px-4 py-4 text-lg font-semibold"
+                      href="/indstillinger"
+                      onClick={closeMenu}
+                    >
+                      Indstillinger
+                    </Link>
+
+                    <button
+                      type="button"
+                      onClick={logout}
+                      className="block w-full px-4 py-4 text-left text-lg font-semibold"
+                    >
+                      Log ud
+                    </button>
+                  </>
+                ) : (
+                  <Link
+                    className="block px-4 py-4 text-lg font-semibold"
+                    href="/login"
+                    onClick={closeMenu}
+                  >
+                    Log ind
+                  </Link>
+                )}
               </nav>
             </div>
           </div>
@@ -161,8 +250,12 @@ export default function MobileAppHeader({
           <div className="mt-5 px-5 pb-5">
             <div className="flex items-center justify-between rounded-full border border-white/15 bg-white/5 px-4 py-3">
               <div className="text-sm font-semibold opacity-90">
-                {leagues.find((l) => l.id === selectedLeagueId)?.name ?? ""}
+                {rows.find((r) => r.id === selectedRowId)?.name ?? ""}
               </div>
+            </div>
+
+            <div className="mt-4">
+              <SeasonSlicer seasons={seasons} selectedStartYear={selectedSeasonStartYear} />
             </div>
 
             <div className="mt-4">
@@ -170,17 +263,27 @@ export default function MobileAppHeader({
             </div>
 
             <div className="mt-4">
-              <LeagueSlicer
-                leagues={leagues}
-                selectedLeagueId={selectedLeagueId}
-              />
+              <AgeGroupSlicer ageGroups={ageGroups} selectedAgeGroup={selectedAgeGroup} />
             </div>
 
             <div className="mt-4">
-              <TeamSlicer
-                teams={teams}
-                selectedTeamId={selectedTeamId}
-              />
+              <CompetitionRowSlicer rows={rows} selectedRowId={selectedRowId} />
+            </div>
+
+            <div className="mt-4">
+              <CompetitionPoolSlicer pools={pools} selectedPoolId={selectedPoolId} />
+            </div>
+
+            <div className="mt-4">
+              <CompetitionTeamSlicer teams={poolTeams} selectedTeamName={selectedTeamName} />
+            </div>
+
+            <div className="mt-4">
+              <CalendarModeSlicer mode={calendarMode} hasTeam={Boolean(selectedTeamName)} />
+            </div>
+
+            <div className="mt-4">
+              <StatsAggregationModeSlicer mode={statsAggregationMode} />
             </div>
           </div>
         ) : null}

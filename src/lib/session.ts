@@ -1,11 +1,21 @@
 import { getIronSession, type SessionOptions } from "iron-session";
 import { cookies } from "next/headers";
+import type { AgeGroupValue } from "@/lib/ageGroups";
 
 export type SessionData = {
   userId?: string;
+  guestDefaultsApplied?: boolean;
   selectedLeagueId?: string;
   selectedTeamId?: string;
+  selectedCompetitionSeasonStartYear?: number;
   selectedGender?: "MEN" | "WOMEN";
+  selectedAgeGroup?: AgeGroupValue;
+  selectedCompetitionRowId?: string;
+  selectedCompetitionPoolId?: string;
+  selectedCompetitionTeamName?: string;
+  selectedCompetitionCalendarMode?: "ALL" | "TEAM";
+  selectedStatsAggregationMode?: "TOTAL" | "PER_GAME";
+  selectedViewMode?: "LIGHT" | "DARK";
 };
 
 const sessionOptions: SessionOptions = {

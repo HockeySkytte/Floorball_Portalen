@@ -1,8 +1,7 @@
+import { getAppContext } from "@/lib/appContext";
+import StatistikOverviewServer from "./StatistikOverviewServer";
+
 export default async function StatistikPage() {
-  return (
-    <div className="mx-auto max-w-3xl">
-      <h1 className="text-2xl font-semibold">Statistik</h1>
-      <p className="mt-2 text-sm text-zinc-600">(tom side)</p>
-    </div>
-  );
+  const { ctx, statsAggregationMode, leagueName } = await getAppContext();
+  return <StatistikOverviewServer ctx={ctx} mode={statsAggregationMode} leagueName={leagueName} />;
 }
