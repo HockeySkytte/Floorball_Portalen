@@ -40,43 +40,59 @@ export default async function KalenderPage({
     );
   }
 
-  const allMatches = ctx.selectedSeasonIsCurrent
-    ? await (async () => {
-        const puljeId = ctx.pools.find((p) => p.id === ctx.selectedPoolId)?.puljeId ?? null;
-        if (!puljeId) return null;
-        return getMatches(puljeId);
-      })()
-    : await prisma.competitionMatch.findMany({
-        where: {
-          poolId: ctx.selectedPoolId,
-        },
-        orderBy: [{ startAt: "asc" }, { matchNo: "asc" }, { kampId: "asc" }],
-        select: {
-          kampId: true,
-          matchNo: true,
-          startAt: true,
-          venue: true,
-          homeTeam: true,
-          awayTeam: true,
-          homeScore: true,
-          awayScore: true,
-        },
-      });
+  type NormalizedMatch = {
+    kampId: number;
+    matchNo: number | null;
+    startAt: Date | null;
+    venue: string | null;
+    homeTeam: string;
+    awayTeam: string;
+    homeScore: number | null;
+    awayScore: number | null;
+    resultNote: "SV" | null;
+  };
 
-  if (ctx.selectedSeasonIsCurrent && allMatches === null) {
-    return (
-      <div className="mx-auto max-w-5xl">
-        <h1 className="text-2xl font-semibold">Kalender</h1>
-        <p className="mt-2 text-sm text-zinc-600">
-          Kunne ikke finde puljeId for den valgte pulje. Kør “Sync Sportssys” igen.
-        </p>
-      </div>
-    );
+  let normalizedMatches: NormalizedMatch[] = [];
+
+  if (ctx.selectedSeasonIsCurrent) {
+    const allMatches = await (async () => {
+      const puljeId = ctx.pools.find((p) => p.id === ctx.selectedPoolId)?.puljeId ?? null;
+      if (!puljeId) return null;
+      return getMatches(puljeId);
+    })();
+
+    if (allMatches === null) {
+      return (
+        <div className="mx-auto max-w-5xl">
+          <h1 className="text-2xl font-semibold">Kalender</h1>
+          <p className="mt-2 text-sm text-zinc-600">
+            Kunne ikke finde puljeId for den valgte pulje. Kør “Sync Sportssys” igen.
+          </p>
+        </div>
+      );
+    }
+
+    normalizedMatches = allMatches;
+  } else {
+    const dbMatches = await prisma.competitionMatch.findMany({
+      where: {
+        poolId: ctx.selectedPoolId,
+      },
+      orderBy: [{ startAt: "asc" }, { matchNo: "asc" }, { kampId: "asc" }],
+      select: {
+        kampId: true,
+        matchNo: true,
+        startAt: true,
+        venue: true,
+        homeTeam: true,
+        awayTeam: true,
+        homeScore: true,
+        awayScore: true,
+      },
+    });
+
+    normalizedMatches = dbMatches.map((m) => ({ ...m, resultNote: null }));
   }
-
-  const normalizedMatches = ctx.selectedSeasonIsCurrent
-    ? (allMatches ?? [])
-    : (allMatches ?? []).map((m) => ({ ...m, resultNote: null as const }));
 
   const allMatchesNonNull = normalizedMatches;
   const teamName = ctx.selectedTeamName ?? "";
