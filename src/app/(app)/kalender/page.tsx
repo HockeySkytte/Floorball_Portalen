@@ -74,7 +74,11 @@ export default async function KalenderPage({
     );
   }
 
-  const allMatchesNonNull = allMatches ?? [];
+  const normalizedMatches = ctx.selectedSeasonIsCurrent
+    ? (allMatches ?? [])
+    : (allMatches ?? []).map((m) => ({ ...m, resultNote: null as const }));
+
+  const allMatchesNonNull = normalizedMatches;
   const teamName = ctx.selectedTeamName ?? "";
   const teamMatchesOnly = teamName
     ? allMatchesNonNull.filter((m) => m.homeTeam === teamName || m.awayTeam === teamName)
@@ -113,10 +117,13 @@ export default async function KalenderPage({
                 </tr>
               ) : (
                 visibleMatches.map((m) => {
-                  const scoreText =
+                  const baseScore =
                     m.homeScore != null && m.awayScore != null
                       ? `${m.homeScore}-${m.awayScore}`
                       : "-";
+
+                  const scoreText =
+                    baseScore !== "-" && m.resultNote === "SV" ? `${baseScore} (SV)` : baseScore;
 
                   const isTeamMatch =
                     teamName && (m.homeTeam === teamName || m.awayTeam === teamName);

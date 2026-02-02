@@ -72,6 +72,13 @@ function parseIntStrict(v: string): number | null {
   return Number.isFinite(n) ? n : null;
 }
 
+function parseIntLoose(v: string): number | null {
+  const m = String(v ?? "").match(/(\d+)/);
+  if (!m) return null;
+  const n = Number.parseInt(m[1]!, 10);
+  return Number.isFinite(n) ? n : null;
+}
+
 function parseGenderToSportssys(gender: Gender): "1" | "2" {
   // sportssys: 1 = Mand, 2 = Kvinde
   return gender === Gender.WOMEN ? "2" : "1";
@@ -272,15 +279,16 @@ function parseDateTime(text: string): Date | null {
   return new Date(Date.UTC(year, month - 1, day, hour, minute, 0));
 }
 
-function parseScore(text: string): { home: number; away: number } | null {
-  // Example: "8 - 4" or "8 - 4".
+function parseScore(text: string): { home: number; away: number; note: "SV" | null } | null {
+  // Examples: "8 - 4", "8 - 4", "4 - 2 SV", "4 - 2 (SV)", "4-2 SV.".
   const cleaned = text.replace(/\u00a0/g, " ").replace(/\s+/g, " ").trim();
-  const m = cleaned.match(/^(\d+)\s*-\s*(\d+)$/);
+  const m = cleaned.match(/^(\d+)\s*-\s*(\d+)(?:\s*(?:\(?\s*(SV)\s*\)?\.?))?$/i);
   if (!m) return null;
   const home = Number.parseInt(m[1]!, 10);
   const away = Number.parseInt(m[2]!, 10);
   if (!Number.isFinite(home) || !Number.isFinite(away)) return null;
-  return { home, away };
+  const note = m[3] ? "SV" : null;
+  return { home, away, note };
 }
 
 export async function getStandings(puljeId: number): Promise<
@@ -325,20 +333,46 @@ export async function getStandings(puljeId: number): Promise<
 
       // Expected: [rank, team, played, wins, draws, losses, goalsFor, '-', goalsAgainst, points]
       if (cells.length < 8) continue;
-      const rank = parseIntStrict(cells[0] ?? "");
+      const rank = parseIntLoose(cells[0] ?? "");
       const team = cells[1] ?? "";
       if (!rank || !team) continue;
 
-      const played = parseIntStrict(cells[2] ?? "");
-      const wins = parseIntStrict(cells[3] ?? "");
-      const draws = parseIntStrict(cells[4] ?? "");
-      const losses = parseIntStrict(cells[5] ?? "");
+      // Some standings tables include a separate "NB" column between team and played.
+      const hasNbCol = (cells[2] ?? "").trim().toUpperCase() === "NB";
+      const off = hasNbCol ? 1 : 0;
 
-      // goals are split like "67", "-", "41"
-      const goalsFor = parseIntStrict(cells[6] ?? "");
-      const goalsAgainst = parseIntStrict(cells.find((c) => /\d+/.test(c) && c !== cells[6]) ?? "") ?? null;
+      const played = parseIntLoose(cells[2 + off] ?? "");
+      const wins = parseIntLoose(cells[3 + off] ?? "");
+      const draws = parseIntLoose(cells[4 + off] ?? "");
+      const losses = parseIntLoose(cells[5 + off] ?? "");
 
-      const points = parseIntStrict(cells[cells.length - 1] ?? "");
+      let goalsFor: number | null = null;
+      let goalsAgainst: number | null = null;
+
+      // Sometimes goals are in a single cell like "127 - 64".
+      const scoreCell = cells.find((c) => /\d+\s*-\s*\d+/.test(c)) ?? null;
+      if (scoreCell) {
+        const s = parseScore(scoreCell);
+        goalsFor = s?.home ?? null;
+        goalsAgainst = s?.away ?? null;
+      } else {
+        // Common layout: "67", "-", "41".
+        const dashIdx = cells.findIndex((c) => c === "-");
+        if (dashIdx > 0 && dashIdx + 1 < cells.length) {
+          const gf = parseIntLoose(cells[dashIdx - 1] ?? "");
+          const ga = parseIntLoose(cells[dashIdx + 1] ?? "");
+          if (gf != null && ga != null) {
+            goalsFor = gf;
+            goalsAgainst = ga;
+          }
+        }
+
+        // Fallback to expected indexes if still missing.
+        if (goalsFor == null) goalsFor = parseIntLoose(cells[6 + off] ?? "");
+        if (goalsAgainst == null && cells.length >= 9 + off) goalsAgainst = parseIntLoose(cells[8 + off] ?? "");
+      }
+
+      const points = parseIntLoose(cells[cells.length - 1] ?? "");
 
       parsed.push({
         rank,
@@ -348,7 +382,7 @@ export async function getStandings(puljeId: number): Promise<
         draws: draws ?? null,
         losses: losses ?? null,
         goalsFor: goalsFor ?? null,
-        goalsAgainst,
+        goalsAgainst: goalsAgainst ?? null,
         points: points ?? null,
       });
     }
@@ -371,6 +405,7 @@ export async function getMatches(puljeId: number): Promise<
     venue: string | null;
     homeScore: number | null;
     awayScore: number | null;
+    resultNote: "SV" | null;
   }>
 > {
   const url = `${BASE}/Pulje-Komplet-Kampprogram.aspx?PuljeId=${puljeId}`;
@@ -386,6 +421,7 @@ export async function getMatches(puljeId: number): Promise<
     venue: string | null;
     homeScore: number | null;
     awayScore: number | null;
+    resultNote: "SV" | null;
   }> = [];
 
   $("table tr").each((_i, tr) => {
@@ -411,6 +447,15 @@ export async function getMatches(puljeId: number): Promise<
     const scoreText = $(tds[5]!).text();
     const score = parseScore(scoreText);
 
+    // Some layouts may place "SV" outside the main score cell.
+    const rowText = tds
+      .map((td) => $(td).text())
+      .join(" ")
+      .replace(/\u00a0/g, " ")
+      .replace(/\s+/g, " ")
+      .trim();
+    const noteFromRow = /\bSV\b/i.test(rowText) ? "SV" : null;
+
     matches.push({
       kampId,
       matchNo,
@@ -420,6 +465,7 @@ export async function getMatches(puljeId: number): Promise<
       venue,
       homeScore: score?.home ?? null,
       awayScore: score?.away ?? null,
+      resultNote: score?.note ?? noteFromRow,
     });
   });
 

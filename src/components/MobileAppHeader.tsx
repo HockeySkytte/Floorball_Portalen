@@ -99,22 +99,26 @@ export default function MobileAppHeader({
   }
 
   return (
-    <div className="sticky top-0 z-50 md:hidden">
+    <div className="md:hidden">
       <div className="bg-[image:var(--sidebar-gradient)] bg-cover bg-no-repeat text-[var(--brand-foreground)]">
+        {/* Top bar */}
         <div className="flex items-start justify-between px-5 pt-5">
           <div>
-            <div className="flex items-center gap-3 text-2xl font-semibold tracking-tight">
+            <div className="flex items-center gap-3 tracking-tight">
               {logoUrl ? (
                 <img
                   src={logoUrl}
                   alt="Logo"
-                  className="h-12 w-12 rounded-md object-contain"
+                  className="h-16 w-16 rounded-full object-cover shadow-sm ring-1 ring-white/60"
                   onError={(e) => {
                     (e.currentTarget as HTMLImageElement).style.display = "none";
                   }}
                 />
               ) : null}
-              <span>Floorball Portalen</span>
+              <div className="flex flex-col text-2xl font-normal leading-none">
+                <span>Floorball</span>
+                <span>Portalen</span>
+              </div>
             </div>
             <div className="mt-1 text-sm opacity-80">{user?.username ?? "Gæst"}</div>
           </div>
@@ -284,6 +288,18 @@ export default function MobileAppHeader({
 
             <div className="mt-4">
               <StatsAggregationModeSlicer mode={statsAggregationMode} />
+            </div>
+
+            <div className="mt-6 text-lg italic opacity-95">
+              Data fra{" "}
+              <a
+                href="https://www.sportssys.dk/"
+                target="_blank"
+                rel="noreferrer noopener"
+                className="font-semibold text-white underline underline-offset-2"
+              >
+                Sportssys
+              </a>
             </div>
           </div>
         ) : null}

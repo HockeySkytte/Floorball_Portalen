@@ -1,4 +1,3 @@
-import Link from "next/link";
 import TopNav from "@/components/TopNav";
 import MobileAppHeader from "@/components/MobileAppHeader";
 import AppSidebarContent from "@/components/AppSidebarContent";
@@ -33,27 +32,13 @@ export default async function AppLayout({
     selectedTeamName,
   } = ctx;
 
-  const selectedTeamLogoUrl = null;
+  const selectedTeamLogoUrl =
+    "https://scontent-cph2-1.xx.fbcdn.net/v/t39.30808-6/270859681_459382205720278_242342008159134090_n.jpg?_nc_cat=108&ccb=1-7&_nc_sid=6ee11a&_nc_ohc=N7D1qcmG0WMQ7kNvwE7O9kG&_nc_oc=AdmDZlXD79Os_iSNMrvmXOo_ndIfy1mBWcDyxha3Da1hco-SXRtb7GW5lCU2DKyG2IU&_nc_zt=23&_nc_ht=scontent-cph2-1.xx&_nc_gid=o6BsrdJFU77SXS8xu9Uq4g&oh=00_Aft8WdLNbamK8sLp0TiJd-2gNtfrcfEhYVLfr4acuwJPSw&oe=6986696C";
 
   return (
     <div className="grid min-h-dvh w-full grid-cols-1 md:grid-cols-[280px_1fr]">
       {/* Desktop: left slicer pane */}
       <aside className="hidden min-h-dvh flex-col bg-[image:var(--sidebar-gradient)] bg-cover bg-no-repeat p-4 text-[var(--brand-foreground)] md:flex">
-        <Link
-          className="flex items-center gap-3 text-xl font-semibold tracking-tight"
-          href="/kalender"
-          aria-label="Floorball Portalen"
-        >
-          {selectedTeamLogoUrl ? (
-            <img
-              src={selectedTeamLogoUrl}
-              alt="Logo"
-              className="h-16 w-16 object-contain"
-            />
-          ) : null}
-          <span>Floorball Portalen</span>
-        </Link>
-
         <AppSidebarContent
           seasons={seasons}
           selectedSeasonStartYear={selectedSeasonStartYear}
