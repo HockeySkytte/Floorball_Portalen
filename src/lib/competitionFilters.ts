@@ -2,6 +2,14 @@ import { prisma } from "@/lib/prisma";
 import type { SessionData } from "@/lib/session";
 import { getAgeGroupLabel, type AgeGroupValue, isAgeGroupValue } from "@/lib/ageGroups";
 
+const POKAL_ROW_ID = "__pokalturneringen__";
+const POKAL_POOL_ID = "__pokal_pool__";
+const POKAL_NAME = "Pokalturneringen";
+
+function isPokalRowName(name: string): boolean {
+  return String(name ?? "").trim().toLocaleLowerCase("da-DK").startsWith("pokal");
+}
+
 function getCurrentSeasonStartYear(now = new Date()): number {
   const y = now.getFullYear();
   const m = now.getMonth() + 1;
@@ -23,6 +31,10 @@ export type CompetitionFilterContext = {
 
   pools: Array<{ id: string; puljeId: number; name: string }>;
   selectedPoolId: string | null;
+
+  // If a virtual pool is selected (e.g. Pokalturneringen), these are the underlying pool IDs to use for queries.
+  effectivePoolIds: string[];
+  isPokalturnering: boolean;
 
   poolTeams: Array<{ name: string }>;
   selectedTeamName: string | null;
@@ -132,44 +144,115 @@ export async function getCompetitionFilterContext({
         })
       : [];
 
-  let selectedRowId: string | null =
-    session.selectedCompetitionRowId ?? user?.competitionRowId ?? rows[0]?.id ?? null;
+  const pokalRows = rows.filter((r) => isPokalRowName(r.name));
+  const rowsForSlicer = pokalRows.length
+    ? [{ id: POKAL_ROW_ID, name: POKAL_NAME }, ...rows.filter((r) => !isPokalRowName(r.name))]
+    : rows;
 
-  if (selectedRowId && !rows.some((r) => r.id === selectedRowId)) {
-    selectedRowId = rows[0]?.id ?? null;
+  let selectedRowId: string | null =
+    session.selectedCompetitionRowId ?? user?.competitionRowId ?? rowsForSlicer[0]?.id ?? null;
+
+  // Map any previously-selected Pokal row to the virtual Pokalturneringen row.
+  if (selectedRowId && pokalRows.some((r) => r.id === selectedRowId)) {
+    selectedRowId = POKAL_ROW_ID;
   }
 
-  const pools = selectedRowId
+  if (selectedRowId && !rowsForSlicer.some((r) => r.id === selectedRowId)) {
+    selectedRowId = rowsForSlicer[0]?.id ?? null;
+  }
+
+  const isPokalturnering = selectedRowId === POKAL_ROW_ID;
+  const pokalRowIds = pokalRows.map((r) => r.id);
+
+  const pokalUnderlyingPools = isPokalturnering
     ? await prisma.competitionPool.findMany({
-        where: { rowId: selectedRowId, teams: { some: {} } },
+        where: { rowId: { in: pokalRowIds } },
         select: { id: true, puljeId: true, name: true },
         orderBy: { name: "asc" },
       })
     : [];
 
+  const pools = isPokalturnering
+    ? [{ id: POKAL_POOL_ID, puljeId: 0, name: POKAL_NAME }]
+    : selectedRowId
+      ? await prisma.competitionPool.findMany({
+          where: { rowId: selectedRowId },
+          select: { id: true, puljeId: true, name: true },
+          orderBy: { name: "asc" },
+        })
+      : [];
+
   let selectedPoolId: string | null =
     session.selectedCompetitionPoolId ?? user?.competitionPoolId ?? pools[0]?.id ?? null;
+
+  // Map any previously-selected Pokal pool to the virtual Pokal pool.
+  if (isPokalturnering) {
+    if (selectedPoolId && pokalUnderlyingPools.some((p) => p.id === selectedPoolId)) {
+      selectedPoolId = POKAL_POOL_ID;
+    }
+    if (!selectedPoolId) selectedPoolId = POKAL_POOL_ID;
+  }
 
   if (selectedPoolId && !pools.some((p) => p.id === selectedPoolId)) {
     selectedPoolId = pools[0]?.id ?? null;
   }
 
-  const poolTeams = selectedPoolId
-    ? await prisma.competitionPoolTeam.findMany({
-        where: { poolId: selectedPoolId },
-        select: { name: true },
-        orderBy: [{ rank: "asc" }, { name: "asc" }],
-      })
-    : [];
+  const effectivePoolIds = isPokalturnering
+    ? pokalUnderlyingPools.map((p) => p.id)
+    : selectedPoolId && selectedPoolId !== POKAL_POOL_ID
+      ? [selectedPoolId]
+      : [];
+
+  let poolTeams: Array<{ name: string }> = [];
+  if (isPokalturnering) {
+    // Unique teams that have played a match in Pokalturneringen (across underlying pools)
+    const matches = await prisma.competitionMatch.findMany({
+      where: { poolId: { in: effectivePoolIds } },
+      select: { homeTeam: true, awayTeam: true },
+    });
+    const set = new Set<string>();
+    for (const m of matches) {
+      if (m.homeTeam) set.add(m.homeTeam);
+      if (m.awayTeam) set.add(m.awayTeam);
+    }
+    poolTeams = Array.from(set)
+      .sort((a, b) => a.localeCompare(b, "da-DK"))
+      .map((name) => ({ name }));
+  } else if (selectedPoolId && selectedPoolId !== POKAL_POOL_ID) {
+    poolTeams = await prisma.competitionPoolTeam.findMany({
+      where: { poolId: selectedPoolId },
+      select: { name: true },
+      orderBy: [{ rank: "asc" }, { name: "asc" }],
+    });
+  }
+
+  // If no pool-team table exists (some competitions), derive unique team names from matches.
+  let poolTeamsFinal: Array<{ name: string }> = poolTeams;
+
+  if (!isPokalturnering && poolTeamsFinal.length === 0 && effectivePoolIds.length === 1) {
+    const matches = await prisma.competitionMatch.findMany({
+      where: { poolId: effectivePoolIds[0]! },
+      select: { homeTeam: true, awayTeam: true },
+    });
+    const set = new Set<string>();
+    for (const m of matches) {
+      if (m.homeTeam) set.add(m.homeTeam);
+      if (m.awayTeam) set.add(m.awayTeam);
+    }
+    const derived = Array.from(set)
+      .sort((a, b) => a.localeCompare(b, "da-DK"))
+      .map((name) => ({ name }));
+    poolTeamsFinal = derived;
+  }
 
   let selectedTeamName: string | null =
     session.selectedCompetitionTeamName ??
     user?.competitionTeamName ??
-    poolTeams[0]?.name ??
+    poolTeamsFinal[0]?.name ??
     null;
 
-  if (selectedTeamName && !poolTeams.some((t) => t.name === selectedTeamName)) {
-    selectedTeamName = poolTeams[0]?.name ?? null;
+  if (selectedTeamName && !poolTeamsFinal.some((t) => t.name === selectedTeamName)) {
+    selectedTeamName = poolTeamsFinal[0]?.name ?? null;
   }
 
   return {
@@ -180,11 +263,13 @@ export async function getCompetitionFilterContext({
     selectedGender,
     ageGroups,
     selectedAgeGroup,
-    rows,
+    rows: rowsForSlicer,
     selectedRowId,
     pools,
     selectedPoolId,
-    poolTeams,
+    effectivePoolIds,
+    isPokalturnering,
+    poolTeams: poolTeamsFinal,
     selectedTeamName,
   };
 }

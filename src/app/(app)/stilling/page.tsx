@@ -15,6 +15,17 @@ export default async function StillingPage() {
     redirect("/afventer");
   }
 
+  if (ctx.isPokalturnering) {
+    return (
+      <div className="mx-auto max-w-5xl">
+        <h1 className="text-2xl font-semibold">Stilling</h1>
+        <p className="mt-2 text-sm text-zinc-600">
+          Der er ingen stilling for Pokalturneringen.
+        </p>
+      </div>
+    );
+  }
+
   if (!ctx.selectedPoolId) {
     return (
       <div className="mx-auto max-w-5xl">

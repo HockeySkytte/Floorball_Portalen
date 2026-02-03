@@ -122,13 +122,15 @@ export default async function StatistikOverviewServer({
   mode: StatsAggregationMode;
   leagueName: string | null;
 }) {
-  const where = ctx.selectedPoolId
-    ? { poolId: ctx.selectedPoolId }
-    : ctx.selectedRowId
-      ? { pool: { rowId: ctx.selectedRowId } }
-      : ctx.selectedSeasonId
-        ? { pool: { row: { seasonId: ctx.selectedSeasonId } } }
-        : {};
+  const where = ctx.effectivePoolIds.length
+    ? { poolId: { in: ctx.effectivePoolIds } }
+    : ctx.selectedPoolId
+      ? { poolId: ctx.selectedPoolId }
+      : ctx.selectedRowId
+        ? { pool: { rowId: ctx.selectedRowId } }
+        : ctx.selectedSeasonId
+          ? { pool: { row: { seasonId: ctx.selectedSeasonId } } }
+          : {};
 
   const matches = await prisma.competitionMatch.findMany({
     where,

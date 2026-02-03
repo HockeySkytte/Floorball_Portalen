@@ -70,14 +70,45 @@ export default async function KampPage({
   }
 
   if (ctx.selectedSeasonIsCurrent) {
-    const puljeId = ctx.pools.find((p) => p.id === ctx.selectedPoolId)?.puljeId ?? null;
-    if (!puljeId) {
-      redirect("/kalender");
+    if (ctx.isPokalturnering) {
+      const dbMatch = await prisma.competitionMatch.findUnique({
+        where: { kampId },
+        select: {
+          startAt: true,
+          homeTeam: true,
+          awayTeam: true,
+          homeScore: true,
+          awayScore: true,
+        },
+      });
+
+      if (dbMatch) {
+        match = dbMatch;
+      } else {
+        const underlying = ctx.effectivePoolIds.length
+          ? await prisma.competitionPool.findMany({
+              where: { id: { in: ctx.effectivePoolIds } },
+              select: { puljeId: true },
+            })
+          : [];
+        const puljeIds = Array.from(new Set(underlying.map((p) => p.puljeId).filter((n) => n && n > 0)));
+        for (const puljeId of puljeIds) {
+          const matches = await getMatches(puljeId);
+          const found = matches.find((m) => m.kampId === kampId) ?? null;
+          if (found) {
+            match = found;
+            break;
+          }
+        }
+      }
+    } else {
+      const puljeId = ctx.pools.find((p) => p.id === ctx.selectedPoolId)?.puljeId ?? null;
+      if (!puljeId) {
+        redirect("/kalender");
+      }
+      const matches = await getMatches(puljeId);
+      match = matches.find((m) => m.kampId === kampId) ?? null;
     }
-    const matches = await getMatches(puljeId);
-    match =
-      matches.find((m) => m.kampId === kampId) ??
-      null;
   } else {
     const dbMatch = await prisma.competitionMatch.findUnique({
       where: { kampId },

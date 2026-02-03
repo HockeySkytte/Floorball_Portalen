@@ -54,7 +54,53 @@ export default async function KalenderPage({
 
   let normalizedMatches: NormalizedMatch[] = [];
 
-  if (ctx.selectedSeasonIsCurrent) {
+  if (ctx.isPokalturnering) {
+    const poolIds = ctx.effectivePoolIds;
+    const dbMatches = poolIds.length
+      ? await prisma.competitionMatch.findMany({
+          where: {
+            poolId: { in: poolIds },
+          },
+          orderBy: [{ startAt: "asc" }, { matchNo: "asc" }, { kampId: "asc" }],
+          select: {
+            kampId: true,
+            matchNo: true,
+            startAt: true,
+            venue: true,
+            homeTeam: true,
+            awayTeam: true,
+            homeScore: true,
+            awayScore: true,
+          },
+        })
+      : [];
+
+    if (dbMatches.length > 0) {
+      normalizedMatches = dbMatches.map((m) => ({ ...m, resultNote: null }));
+    } else if (ctx.selectedSeasonIsCurrent && poolIds.length > 0) {
+      // Fallback: fetch each underlying pool from Sportssys and merge by kampId.
+      const underlying = await prisma.competitionPool.findMany({
+        where: { id: { in: poolIds } },
+        select: { puljeId: true },
+      });
+      const puljeIds = Array.from(new Set(underlying.map((p) => p.puljeId).filter((n) => n && n > 0)));
+      const lists = await Promise.all(puljeIds.map((puljeId) => getMatches(puljeId)));
+      const map = new Map<number, NormalizedMatch>();
+      for (const list of lists) {
+        for (const m of list) {
+          map.set(m.kampId, m);
+        }
+      }
+      normalizedMatches = Array.from(map.values()).sort((a, b) => {
+        const at = a.startAt?.getTime() ?? 0;
+        const bt = b.startAt?.getTime() ?? 0;
+        if (at !== bt) return at - bt;
+        return (a.matchNo ?? a.kampId) - (b.matchNo ?? b.kampId);
+      });
+    } else {
+      normalizedMatches = [];
+    }
+  } else if (ctx.selectedSeasonIsCurrent) {
     const allMatches = await (async () => {
       const puljeId = ctx.pools.find((p) => p.id === ctx.selectedPoolId)?.puljeId ?? null;
       if (!puljeId) return null;
