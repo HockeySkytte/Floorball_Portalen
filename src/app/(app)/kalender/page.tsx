@@ -101,6 +101,26 @@ export default async function KalenderPage({
     : allMatchesNonNull;
   const visibleMatches = mode === "TEAM" && teamName ? teamMatchesOnly : allMatchesNonNull;
 
+  const visibleKampIds = Array.from(new Set(visibleMatches.map((m) => m.kampId)));
+  const uploadedKampIds = new Set<number>();
+  if (visibleKampIds.length > 0) {
+    const [uploadedLineups, uploadedEvents] = await Promise.all([
+      prisma.matchUploadLineup.findMany({
+        where: { kampId: { in: visibleKampIds } },
+        select: { kampId: true },
+        distinct: ["kampId"],
+      }),
+      prisma.matchUploadEvent.findMany({
+        where: { kampId: { in: visibleKampIds } },
+        select: { kampId: true },
+        distinct: ["kampId"],
+      }),
+    ]);
+
+    for (const r of uploadedLineups) uploadedKampIds.add(r.kampId);
+    for (const r of uploadedEvents) uploadedKampIds.add(r.kampId);
+  }
+
   const rowName = ctx.rows.find((r) => r.id === ctx.selectedRowId)?.name ?? "";
   const poolName = ctx.pools.find((p) => p.id === ctx.selectedPoolId)?.name ?? "";
 
@@ -121,13 +141,14 @@ export default async function KalenderPage({
                 <th className="w-[140px] px-3 py-2 text-left md:w-[200px]">Dato</th>
                 <th className="px-3 py-2 text-left">Kamp</th>
                 <th className="w-[88px] px-3 py-2 text-left">Resultat</th>
+                <th className="w-[96px] px-3 py-2 text-center">Indtastet</th>
                 <th className="hidden w-[260px] px-3 py-2 text-left md:table-cell">Sted</th>
               </tr>
             </thead>
             <tbody>
               {visibleMatches.length === 0 ? (
                 <tr>
-                  <td className="px-3 py-4 text-zinc-600" colSpan={4}>
+                  <td className="px-3 py-4 text-zinc-600" colSpan={5}>
                     Ingen kampe fundet.
                   </td>
                 </tr>
@@ -172,6 +193,13 @@ export default async function KalenderPage({
                         <Link className="block" href={`/kampe/${m.kampId}`}>
                           {scoreText}
                         </Link>
+                      </td>
+                      <td className="px-3 py-2 text-center">
+                        {uploadedKampIds.has(m.kampId) ? (
+                          <span className="font-semibold text-zinc-900" title="Uploadet">
+                            ✓
+                          </span>
+                        ) : null}
                       </td>
                       <td className="hidden px-3 py-2 md:table-cell">
                         <Link className="block" href={`/kampe/${m.kampId}`}>

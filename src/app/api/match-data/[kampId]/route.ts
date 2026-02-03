@@ -106,83 +106,80 @@ export async function GET(
     }),
   ]);
 
-  // Prefer protocol rows (draft edits) if any exist; otherwise fall back to uploaded DB rows.
-  const hasProtocol = home.length > 0 || away.length > 0 || events.length > 0;
-  const hasUploaded = uploadedLineups.length > 0 || uploadedEvents.length > 0;
-
-  if (!hasProtocol && hasUploaded) {
-    const uploadedHome = (uploadedLineups as Array<{
-      venue: string;
-      rowIndex: number;
-      cG: string | null;
-      number: string | null;
-      name: string | null;
-      birthday: string | null;
-    }>)
-      .filter((r) => String(r.venue ?? "").toLowerCase().startsWith("h"))
-      .map((r) => ({
-        rowIndex: r.rowIndex,
-        role: r.cG,
-        number: r.number,
-        name: r.name,
-        born: r.birthday,
-      }));
-
-    const uploadedAway = (uploadedLineups as Array<{
-      venue: string;
-      rowIndex: number;
-      cG: string | null;
-      number: string | null;
-      name: string | null;
-      birthday: string | null;
-    }>)
-      .filter((r) => String(r.venue ?? "").toLowerCase().startsWith("u"))
-      .map((r) => ({
-        rowIndex: r.rowIndex,
-        role: r.cG,
-        number: r.number,
-        name: r.name,
-        born: r.birthday,
-      }));
-
-    const uploadedEventsMapped = (uploadedEvents as Array<{
-      rowIndex: number;
-      venue: string;
-      period: string | null;
-      time: string | null;
-      player1: string | null;
-      player2: string | null;
-      score: string | null;
-      pim: string | null;
-      code: string | null;
-    }>).map((r) => ({
+  const uploadedHome = (uploadedLineups as Array<{
+    venue: string;
+    rowIndex: number;
+    cG: string | null;
+    number: string | null;
+    name: string | null;
+    birthday: string | null;
+  }>)
+    .filter((r) => String(r.venue ?? "").toLowerCase().startsWith("h"))
+    .map((r) => ({
       rowIndex: r.rowIndex,
-      period: r.period,
-      time: r.time,
-      side: String(r.venue ?? "").toLowerCase().startsWith("h") ? "H" : String(r.venue ?? "").toLowerCase().startsWith("u") ? "U" : null,
-      number: r.player1,
-      goal: r.score,
-      assist: r.player2,
-      penalty: r.pim,
-      code: r.code,
+      role: r.cG,
+      number: r.number,
+      name: r.name,
+      born: r.birthday,
     }));
 
-    return NextResponse.json({
-      players: {
-        home: uploadedHome,
-        away: uploadedAway,
-      },
-      events: uploadedEventsMapped,
-    });
-  }
+  const uploadedAway = (uploadedLineups as Array<{
+    venue: string;
+    rowIndex: number;
+    cG: string | null;
+    number: string | null;
+    name: string | null;
+    birthday: string | null;
+  }>)
+    .filter((r) => String(r.venue ?? "").toLowerCase().startsWith("u"))
+    .map((r) => ({
+      rowIndex: r.rowIndex,
+      role: r.cG,
+      number: r.number,
+      name: r.name,
+      born: r.birthday,
+    }));
 
+  const uploadedEventsMapped = (uploadedEvents as Array<{
+    rowIndex: number;
+    venue: string;
+    period: string | null;
+    time: string | null;
+    player1: string | null;
+    player2: string | null;
+    score: string | null;
+    pim: string | null;
+    code: string | null;
+  }>).map((r) => ({
+    rowIndex: r.rowIndex,
+    period: r.period,
+    time: r.time,
+    side: String(r.venue ?? "").toLowerCase().startsWith("h")
+      ? "H"
+      : String(r.venue ?? "").toLowerCase().startsWith("u")
+        ? "U"
+        : null,
+    number: r.player1,
+    goal: r.score,
+    assist: r.player2,
+    penalty: r.pim,
+    code: r.code,
+  }));
+
+  // Prefer protocol rows (draft edits) per section; fall back to uploaded rows if protocol is empty.
+  const playersHomeOut = home.length > 0 ? home : uploadedHome;
+  const playersAwayOut = away.length > 0 ? away : uploadedAway;
+  const eventsOut = events.length > 0 ? events : uploadedEventsMapped;
+
+  // If nothing exists, return empty (caller will render blank inputs).
   return NextResponse.json({
     players: {
-      home,
-      away,
+      home: playersHomeOut,
+      away: playersAwayOut,
     },
-    events,
+    events: eventsOut,
   });
+
 }
 
 export async function POST(

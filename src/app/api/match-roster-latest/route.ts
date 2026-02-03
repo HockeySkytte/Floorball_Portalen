@@ -1,6 +1,9 @@
 import { NextResponse } from "next/server";
 import { requireSuperuserOrAdmin } from "@/lib/auth";
+import { getSession } from "@/lib/session";
+import { getCompetitionFilterContext } from "@/lib/competitionFilters";
 import { prisma } from "@/lib/prisma";
+import { getMatches } from "@/lib/sportssys";
 
 function norm(value: unknown): string {
   return String(value ?? "").trim();
@@ -67,8 +70,19 @@ function sortAndReindexRows(rows: PlayerRow[]): PlayerRow[] {
   return sorted.slice(0, 20).map((r, idx) => ({ ...r, rowIndex: idx }));
 }
 
+function isNonEmptyRosterRow(r: { role: string; number: string; name: string; born: string }): boolean {
+  return Boolean(norm(r.role) || norm(r.number) || norm(r.name) || norm(r.born));
+}
+
+function uniqKey(r: { name: string; born: string }): string {
+  // Use name as primary key (case-insensitive); add birth if present to reduce collisions.
+  const n = normKey(r.name);
+  const b = normKey(r.born);
+  return b ? `${n}::${b}` : n;
+}
+
 export async function GET(req: Request) {
-  await requireSuperuserOrAdmin();
+  const user = await requireSuperuserOrAdmin();
 
   const url = new URL(req.url);
   const teamName = norm(url.searchParams.get("teamName"));
@@ -78,61 +92,144 @@ export async function GET(req: Request) {
     return NextResponse.json({ message: "Mangler teamName." }, { status: 400 });
   }
 
-  // Find latest match in DB for the team where uploaded Lineups exist.
-  const teamMatches: MatchRow[] = await prisma.competitionMatch.findMany({
-    where: {
-      kampId: excludeKampId ? { not: excludeKampId } : undefined,
-      startAt: { not: null },
-      OR: [
-        { homeTeam: { equals: teamName, mode: "insensitive" } },
-        { awayTeam: { equals: teamName, mode: "insensitive" } },
-      ],
+  const session = await getSession();
+  const filterCtx = await getCompetitionFilterContext({
+    user: {
+      gender: user.gender,
+      ageGroup: user.ageGroup,
+      competitionRowId: user.competitionRowId,
+      competitionPoolId: user.competitionPoolId,
+      competitionTeamName: user.competitionTeamName,
     },
-    orderBy: { startAt: "desc" },
-    select: { kampId: true, startAt: true, homeTeam: true, awayTeam: true },
-    take: 50,
+    session,
   });
+
+  let teamMatches: MatchRow[] = [];
+
+  if (filterCtx.selectedSeasonIsCurrent && filterCtx.selectedPoolId) {
+    const puljeId =
+      filterCtx.pools.find((p) => p.id === filterCtx.selectedPoolId)?.puljeId ?? null;
+
+    if (puljeId) {
+      const sportssysMatches = await getMatches(puljeId);
+      teamMatches = sportssysMatches
+        .filter((m) => (excludeKampId ? m.kampId !== excludeKampId : true))
+        .filter((m) => matchHasTeam(teamName, m.homeTeam, m.awayTeam))
+        .sort((a, b) => {
+          const at = a.startAt?.getTime() ?? 0;
+          const bt = b.startAt?.getTime() ?? 0;
+          return bt - at;
+        });
+    }
+  }
+
+  if (teamMatches.length === 0) {
+    // Fall back to DB matches (historical seasons / if pool not selected).
+    teamMatches = await prisma.competitionMatch.findMany({
+      where: {
+        kampId: excludeKampId ? { not: excludeKampId } : undefined,
+        startAt: { not: null },
+        OR: [
+          { homeTeam: { equals: teamName, mode: "insensitive" } },
+          { awayTeam: { equals: teamName, mode: "insensitive" } },
+        ],
+      },
+      orderBy: { startAt: "desc" },
+      select: { kampId: true, startAt: true, homeTeam: true, awayTeam: true },
+      take: 50,
+    });
+  }
 
   if (teamMatches.length === 0) {
     return NextResponse.json(
-      { message: "Ingen kamp fundet i databasen for det valgte hold." },
+      { message: "Ingen kamp fundet for det valgte hold (hverken i Sportssys eller databasen)." },
       { status: 404 }
     );
   }
 
+  const matchIds = teamMatches.map((m) => m.kampId);
+  const uploadedAll = await prisma.matchUploadLineup.findMany({
+    where: { kampId: { in: matchIds } },
+    orderBy: [{ kampId: "desc" }, { venue: "asc" }, { rowIndex: "asc" }],
+    select: { kampId: true, venue: true, rowIndex: true, cG: true, number: true, name: true, birthday: true },
+  });
+
+  const uploadedByMatchVenue = new Map<string, Array<{ cG: string | null; number: string | null; name: string | null; birthday: string | null }>>();
+  for (const r of uploadedAll) {
+    const venue = norm(r.venue);
+    const key = `${r.kampId}|${venue}`;
+    const arr = uploadedByMatchVenue.get(key) ?? [];
+    arr.push({ cG: r.cG, number: r.number, name: r.name, birthday: r.birthday });
+    uploadedByMatchVenue.set(key, arr);
+  }
+
   let chosen: { match: MatchRow; venue: "Hjemme" | "Ude" } | null = null;
   for (const m of teamMatches) {
-    if (!matchHasTeam(teamName, m.homeTeam, m.awayTeam)) continue;
     const venue = venueFromMatch(teamName, m.homeTeam, m.awayTeam);
     if (!venue) continue;
-
-    const exists = await prisma.matchUploadLineup.findFirst({
-      where: { kampId: m.kampId, venue },
-      select: { id: true },
-    });
-
-    if (exists) {
+    const key = `${m.kampId}|${venue}`;
+    const rows = uploadedByMatchVenue.get(key) ?? [];
+    if (rows.length > 0) {
       chosen = { match: m, venue };
       break;
     }
   }
 
   if (chosen) {
-    const uploaded = await prisma.matchUploadLineup.findMany({
-      where: { kampId: chosen.match.kampId, venue: chosen.venue },
-      orderBy: { rowIndex: "asc" },
-      select: { cG: true, number: true, name: true, birthday: true },
-    });
+    const chosenKey = `${chosen.match.kampId}|${chosen.venue}`;
+    const primaryUploaded = uploadedByMatchVenue.get(chosenKey) ?? [];
 
-    const rows = sortAndReindexRows(
-      uploaded.map((r: { cG: string | null; number: string | null; name: string | null; birthday: string | null }) => ({
+    const merged: PlayerRow[] = [];
+    const seen = new Set<string>();
+
+    for (const r of primaryUploaded) {
+      const row = {
         rowIndex: 0,
         role: r.cG ?? "",
         number: r.number ?? "",
         name: r.name ?? "",
         born: r.birthday ?? "",
-      }))
-    );
+      };
+      if (!isNonEmptyRosterRow(row)) continue;
+      const key = uniqKey(row);
+      if (!key) continue;
+      if (seen.has(key)) continue;
+      seen.add(key);
+      merged.push(row);
+    }
+
+    // Fill up to 20 with unique names from older uploaded lineups.
+    if (merged.length < 20) {
+      for (const m of teamMatches) {
+        if (m.kampId === chosen.match.kampId) continue;
+        const venue = venueFromMatch(teamName, m.homeTeam, m.awayTeam);
+        if (!venue) continue;
+        const key = `${m.kampId}|${venue}`;
+        const uploaded = uploadedByMatchVenue.get(key) ?? [];
+        if (uploaded.length === 0) continue;
+
+        for (const r of uploaded) {
+          const row = {
+            rowIndex: 0,
+            role: r.cG ?? "",
+            number: r.number ?? "",
+            name: r.name ?? "",
+            born: r.birthday ?? "",
+          };
+          if (!isNonEmptyRosterRow(row)) continue;
+          const u = uniqKey(row);
+          if (!u) continue;
+          if (seen.has(u)) continue;
+          seen.add(u);
+          merged.push(row);
+          if (merged.length >= 20) break;
+        }
+
+        if (merged.length >= 20) break;
+      }
+    }
+
+    const rows = sortAndReindexRows(merged);
 
     return NextResponse.json({
       sourceKampId: chosen.match.kampId,
