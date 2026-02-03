@@ -15,39 +15,46 @@ async function ensureBootstrapAdmin() {
   });
 
   const passwordHash = await hashPassword(adminPassword);
-  const desiredUsername = "admin";
 
-  const existingByUsername = await prisma.user.findUnique({
-    where: { username: desiredUsername },
+  // IMPORTANT: Shared auth DB across apps can have multiple users with the same email
+  // in different leagues. Never attempt to "move" a user across leagues or overwrite
+  // their email during bootstrap; only operate within the default league.
+  const existingAdminByEmailInLeague = await prisma.user.findFirst({
+    where: { leagueId: defaultLeague.id, email: adminEmail },
+    select: { id: true, username: true, teamId: true },
   });
 
-  if (!existingByUsername) {
+  if (!existingAdminByEmailInLeague) {
+    const usernameCandidates = ["floorball_admin", "admin", `admin_${defaultLeague.id}`];
+    let usernameToUse = usernameCandidates[0]!;
+    for (const candidate of usernameCandidates) {
+      const taken = await prisma.user.findFirst({
+        where: { username: candidate },
+        select: { id: true },
+      });
+      if (!taken) {
+        usernameToUse = candidate;
+        break;
+      }
+    }
+
     await prisma.user.create({
       data: {
         globalRole: "ADMIN",
         superuserStatus: "APPROVED",
         leagueId: defaultLeague.id,
         email: adminEmail,
-        username: desiredUsername,
+        username: usernameToUse,
         passwordHash,
       },
     });
   } else {
-    const emailOwner = await prisma.user.findUnique({
-      where: { email: adminEmail },
-      select: { id: true },
-    });
-
-    const canSetEmail = !emailOwner || emailOwner.id === existingByUsername.id;
-
     await prisma.user.update({
-      where: { id: existingByUsername.id },
+      where: { id: existingAdminByEmailInLeague.id },
       data: {
         globalRole: "ADMIN",
         superuserStatus: "APPROVED",
-        leagueId: defaultLeague.id,
         passwordHash,
-        ...(canSetEmail ? { email: adminEmail } : {}),
       },
     });
   }
@@ -77,10 +84,17 @@ async function ensureBootstrapAdmin() {
 
   // Ensure admin has a reasonable default context.
   if (firstTeam) {
-    await prisma.user.update({
-      where: { username: desiredUsername },
-      data: { teamId: firstTeam.id },
+    const adminUser = await prisma.user.findFirst({
+      where: { leagueId: defaultLeague.id, email: adminEmail },
+      select: { id: true, teamId: true },
     });
+
+    if (adminUser && !adminUser.teamId) {
+      await prisma.user.update({
+        where: { id: adminUser.id },
+        data: { teamId: firstTeam.id },
+      });
+    }
   }
 }
 
@@ -121,26 +135,47 @@ export async function POST(req: Request) {
       await ensureBootstrapAdmin();
     }
 
-    const user = await prisma.user.findFirst({
+    const session = await getSession();
+    const preferredLeagueId = session.selectedLeagueId ?? null;
+    const identifierEmail = emailOrUsername.toLowerCase();
+
+    const candidates = await prisma.user.findMany({
       where: {
-        OR: [
-          { email: emailOrUsername.toLowerCase() },
-          { username: emailOrUsername },
-        ],
+        OR: [{ email: identifierEmail }, { username: emailOrUsername }],
       },
+      select: {
+        id: true,
+        leagueId: true,
+        teamId: true,
+        passwordHash: true,
+        updatedAt: true,
+      },
+      take: 20,
     });
+
+    const orderedCandidates = [...candidates].sort((a, b) => {
+      const aPref = preferredLeagueId && a.leagueId === preferredLeagueId ? 0 : 1;
+      const bPref = preferredLeagueId && b.leagueId === preferredLeagueId ? 0 : 1;
+      if (aPref !== bPref) return aPref - bPref;
+      return b.updatedAt.getTime() - a.updatedAt.getTime();
+    });
+
+    let user: (typeof orderedCandidates)[number] | null = null;
+    for (const candidate of orderedCandidates) {
+      const ok = await verifyPassword(password, candidate.passwordHash);
+      if (ok) {
+        user = candidate;
+        break;
+      }
+    }
 
     if (!user) {
       return NextResponse.json({ message: "Forkert login." }, { status: 401 });
     }
 
-    const ok = await verifyPassword(password, user.passwordHash);
-    if (!ok) {
-      return NextResponse.json({ message: "Forkert login." }, { status: 401 });
-    }
-
-    const session = await getSession();
     session.userId = user.id;
+    session.selectedLeagueId = user.leagueId;
+    if (user.teamId) session.selectedTeamId = user.teamId;
     await session.save();
 
     return NextResponse.json({ ok: true });
