@@ -22,6 +22,8 @@ type EventRow = {
   code: string;
 };
 
+const EVENT_ROW_COUNT = 50;
+
 function range(n: number): number[] {
   return Array.from({ length: n }, (_v, i) => i);
 }
@@ -51,7 +53,7 @@ export default function MatchAdminPanels({
 
   const [playersHome, setPlayersHome] = useState<PlayerRow[]>(() => fillArray(20, emptyPlayer));
   const [playersAway, setPlayersAway] = useState<PlayerRow[]>(() => fillArray(20, emptyPlayer));
-  const [events, setEvents] = useState<EventRow[]>(() => fillArray(30, emptyEvent));
+  const [events, setEvents] = useState<EventRow[]>(() => fillArray(EVENT_ROW_COUNT, emptyEvent));
 
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -65,7 +67,7 @@ export default function MatchAdminPanels({
 
   const homeRows = useMemo(() => range(20), []);
   const awayRows = useMemo(() => range(20), []);
-  const eventRows = useMemo(() => range(30), []);
+  const eventRows = useMemo(() => range(EVENT_ROW_COUNT), []);
 
   // Load existing saved protocol once when the admin tools are first used.
   useEffect(() => {
@@ -84,7 +86,7 @@ export default function MatchAdminPanels({
 
         const nextHome = fillArray(20, emptyPlayer);
         const nextAway = fillArray(20, emptyPlayer);
-        const nextEvents = fillArray(30, emptyEvent);
+        const nextEvents = fillArray(EVENT_ROW_COUNT, emptyEvent);
 
         for (const r of data?.players?.home ?? []) {
           if (typeof r?.rowIndex !== "number") continue;
