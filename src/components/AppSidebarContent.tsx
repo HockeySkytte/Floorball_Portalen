@@ -55,7 +55,7 @@ export default function AppSidebarContent({
       <div className="mt-0">
         <div className="mb-3 flex items-center gap-3">
           <img
-            src="https://scontent-cph2-1.xx.fbcdn.net/v/t39.30808-6/270859681_459382205720278_242342008159134090_n.jpg?_nc_cat=108&ccb=1-7&_nc_sid=6ee11a&_nc_ohc=N7D1qcmG0WMQ7kNvwE7O9kG&_nc_oc=AdmDZlXD79Os_iSNMrvmXOo_ndIfy1mBWcDyxha3Da1hco-SXRtb7GW5lCU2DKyG2IU&_nc_zt=23&_nc_ht=scontent-cph2-1.xx&_nc_gid=o6BsrdJFU77SXS8xu9Uq4g&oh=00_Aft8WdLNbamK8sLp0TiJd-2gNtfrcfEhYVLfr4acuwJPSw&oe=6986696C"
+            src="https://hockeystatisticscom.wordpress.com/wp-content/uploads/2026/02/270859681_459382205720278_242342008159134090_n.jpg"
             alt="Floorball Portalen"
             className="h-[75px] w-[75px] rounded-full object-cover shadow-sm ring-1 ring-white/60"
           />

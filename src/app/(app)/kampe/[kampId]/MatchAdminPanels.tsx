@@ -24,6 +24,129 @@ type EventRow = {
 
 const EVENT_ROW_COUNT = 50;
 
+type PenaltyMinutes = "" | "2" | "4" | "2+10";
+
+type CodeOption = {
+  code: string;
+  description: string;
+};
+
+const PENALTY_OPTIONS: Array<{ value: PenaltyMinutes; label: string }> = [
+  { value: "", label: "\u00A0" },
+  { value: "2", label: "2" },
+  { value: "4", label: "4" },
+  { value: "2+10", label: "2+10" },
+];
+
+const CODE_OPTIONS_BY_PENALTY: Record<PenaltyMinutes, CodeOption[]> = {
+  "": [
+    { code: "401", description: "Time Out" },
+    { code: "402", description: "Straffeslag" },
+  ],
+  "2": [
+    { code: "201", description: "Ukorrekt slag" },
+    { code: "202", description: "Låsning af stav" },
+    { code: "203", description: "Løfte stav" },
+    { code: "204", description: "Ukorrekt spark" },
+    { code: "205", description: "Fastholdning" },
+    { code: "206", description: "Højt spark eller høj stav" },
+    { code: "207", description: "Ukorrekt skub" },
+    { code: "208", description: "Hårdt spil" },
+    { code: "209", description: "Måling af stav" },
+    { code: "210", description: "Spil uden stav" },
+    { code: "211", description: "Undlade at fjerne knækket stav" },
+    { code: "212", description: "Obstruktion" },
+    { code: "213", description: "Ukorrekt afstand" },
+    { code: "214", description: "Liggende spil" },
+    { code: "215", description: "Spil med hånden" },
+    { code: "216", description: "Ukorrekt udskiftning" },
+    { code: "217", description: "For mange spillere på banen" },
+    { code: "218", description: "Ukorrekt indtræden på banen" },
+    { code: "219", description: "Forsinkelse af spillet" },
+    { code: "220", description: "Protester" },
+    { code: "221", description: "Ukorrekt udstyr" },
+    { code: "222", description: "Gentagne forseelser" },
+  ],
+  "4": [
+    { code: "501", description: "Voldsomt slag" },
+    { code: "502", description: "Farligt spil" },
+    { code: "503", description: "Hægtning" },
+    { code: "504", description: "Hårdt spil" },
+    { code: "301", description: "Matchstraf 1" },
+    { code: "302", description: "Matchstraf 2" },
+    { code: "303", description: "Matchstraf 3" },
+  ],
+  "2+10": [{ code: "101", description: "Dårlig opførsel" }],
+};
+
+function norm(value: unknown): string {
+  return String(value ?? "").trim();
+}
+
+function uniqueSortedNumbers(rows: Array<{ number: string }>): string[] {
+  const set = new Set<string>();
+  for (const r of rows) {
+    const v = norm(r?.number);
+    if (!v) continue;
+    set.add(v);
+  }
+  return Array.from(set).sort((a, b) => {
+    const an = Number.parseInt(a, 10);
+    const bn = Number.parseInt(b, 10);
+    if (Number.isFinite(an) && Number.isFinite(bn) && an !== bn) return an - bn;
+    return a.localeCompare(b, "da");
+  });
+}
+
+function digitsOnly(value: string): string {
+  return value.replace(/\D+/g, "");
+}
+
+function formatTimeFromDigits(digits: string): string {
+  const d = digitsOnly(digits).slice(0, 4);
+  if (!d) return "";
+  if (d.length <= 2) return d;
+  const padded = d.padStart(4, "0");
+  return `${padded.slice(0, 2)}:${padded.slice(2)}`;
+}
+
+function isValidTime(value: string): boolean {
+  const v = norm(value);
+  if (!v) return true;
+  const m = v.match(/^(\d{2}):(\d{2})$/);
+  if (!m) return false;
+  const minutes = Number.parseInt(m[1], 10);
+  const seconds = Number.parseInt(m[2], 10);
+  if (!Number.isFinite(minutes) || minutes < 0 || minutes > 99) return false;
+  if (!Number.isFinite(seconds) || seconds < 0 || seconds > 59) return false;
+  return true;
+}
+
+function parseScore(value: string): { home: number; away: number } | null {
+  const v = norm(value);
+  if (!v) return null;
+  const m = v.match(/^(\d+)\s*-\s*(\d+)$/);
+  if (!m) return null;
+  const home = Number.parseInt(m[1], 10);
+  const away = Number.parseInt(m[2], 10);
+  if (!Number.isFinite(home) || !Number.isFinite(away) || home < 0 || away < 0) return null;
+  return { home, away };
+}
+
+function lastKnownScoreBefore(events: EventRow[], rowIndex: number): { home: number; away: number } {
+  for (let i = rowIndex - 1; i >= 0; i -= 1) {
+    const s = parseScore(events[i]?.goal ?? "");
+    if (s) return s;
+  }
+  return { home: 0, away: 0 };
+}
+
+function nextGoalScore(events: EventRow[], rowIndex: number, side: "H" | "U"): string {
+  const last = lastKnownScoreBefore(events, rowIndex);
+  const next = side === "H" ? { home: last.home + 1, away: last.away } : { home: last.home, away: last.away + 1 };
+  return `${next.home}-${next.away}`;
+}
+
 function range(n: number): number[] {
   return Array.from({ length: n }, (_v, i) => i);
 }
@@ -175,6 +298,11 @@ export default function MatchAdminPanels({
     setUploadMessage(null);
     setUploadError(null);
     try {
+      const invalid = validateEventsBeforeUpload(events, playersHome, playersAway);
+      if (invalid) {
+        throw new Error(invalid);
+      }
+
       // Ensure we upload the latest edits (autosave is debounced).
       await fetch(`/api/match-data/${kampId}`, {
         method: "POST",
@@ -328,7 +456,14 @@ export default function MatchAdminPanels({
       {open === "events" ? (
         <LeftDrawer widthClass="w-[min(620px,100%)]" title="Indtast Events" onClose={() => setOpen(null)}>
           <StatusLine loading={loading} saving={saving} error={saveError} />
-          <EventsTable rows={eventRows} kampId={kampId} value={events} onChange={setEvents} />
+          <EventsTable
+            rows={eventRows}
+            kampId={kampId}
+            value={events}
+            onChange={setEvents}
+            playersHome={playersHome}
+            playersAway={playersAway}
+          />
         </LeftDrawer>
       ) : null}
     </>
@@ -496,12 +631,19 @@ function EventsTable({
   kampId,
   value,
   onChange,
+  playersHome,
+  playersAway,
 }: {
   rows: number[];
   kampId: number;
   value: EventRow[];
   onChange: (next: EventRow[]) => void;
+  playersHome: PlayerRow[];
+  playersAway: PlayerRow[];
 }) {
+  const homeNumbers = useMemo(() => uniqueSortedNumbers(playersHome), [playersHome]);
+  const awayNumbers = useMemo(() => uniqueSortedNumbers(playersAway), [playersAway]);
+
   return (
     <div className="space-y-3">
       <div className="text-sm text-zinc-600">KampId: {kampId}</div>
@@ -542,12 +684,27 @@ function EventsTable({
                   </td>
                   <td className="px-2 py-2">
                     <input
-                      placeholder="mm:ss"
+                      inputMode="numeric"
+                      placeholder="mmss"
                       className="w-full rounded-md border border-zinc-300 px-1.5 py-1 text-sm"
                       value={value[i]?.time ?? ""}
                       onChange={(e) => {
+                        const prev = norm(value[i]?.time);
+                        const prevDigits = digitsOnly(prev);
+                        const nextDigits = digitsOnly(e.target.value).slice(0, 4);
+                        const nextTime = formatTimeFromDigits(nextDigits);
+
+                        // If the user reached a full mmss entry, ensure seconds are valid.
+                        if (nextDigits.length === 4 && !isValidTime(nextTime)) {
+                          const fallbackTime = formatTimeFromDigits(prevDigits);
+                          const next = value.slice();
+                          next[i] = { ...(next[i] ?? emptyEvent()), time: fallbackTime };
+                          onChange(next);
+                          return;
+                        }
+
                         const next = value.slice();
-                        next[i] = { ...(next[i] ?? emptyEvent()), time: e.target.value };
+                        next[i] = { ...(next[i] ?? emptyEvent()), time: nextTime };
                         onChange(next);
                       }}
                     />
@@ -557,8 +714,19 @@ function EventsTable({
                       className="w-full rounded-md border border-zinc-300 bg-white px-1.5 py-1 text-sm"
                       value={value[i]?.side ?? ""}
                       onChange={(e) => {
+                        const nextSide = e.target.value;
                         const next = value.slice();
-                        next[i] = { ...(next[i] ?? emptyEvent()), side: e.target.value };
+                        const cur = next[i] ?? emptyEvent();
+                        const numbers = nextSide === "H" ? homeNumbers : nextSide === "U" ? awayNumbers : [];
+                        const numberOk = !norm(cur.number) || numbers.includes(norm(cur.number));
+                        const assistOk = !norm(cur.assist) || numbers.includes(norm(cur.assist));
+                        const nextRow: EventRow = {
+                          ...cur,
+                          side: nextSide,
+                          number: numberOk ? cur.number : "",
+                          assist: assistOk ? cur.assist : "",
+                        };
+                        next[i] = nextRow;
                         onChange(next);
                       }}
                     >
@@ -568,58 +736,103 @@ function EventsTable({
                     </select>
                   </td>
                   <td className="px-2 py-2">
-                    <input
-                      inputMode="numeric"
-                      className="w-full rounded-md border border-zinc-300 px-1.5 py-1 text-sm"
+                    <select
+                      className="w-full rounded-md border border-zinc-300 bg-white px-1.5 py-1 text-sm disabled:bg-zinc-100"
                       value={value[i]?.number ?? ""}
+                      disabled={!(value[i]?.side === "H" || value[i]?.side === "U")}
                       onChange={(e) => {
                         const next = value.slice();
                         next[i] = { ...(next[i] ?? emptyEvent()), number: e.target.value };
                         onChange(next);
                       }}
-                    />
+                    >
+                      <option value="">&nbsp;</option>
+                      {(value[i]?.side === "H" ? homeNumbers : value[i]?.side === "U" ? awayNumbers : []).map((n) => (
+                        <option key={n} value={n}>
+                          {n}
+                        </option>
+                      ))}
+                    </select>
                   </td>
                   <td className="px-2 py-2">
-                    <input
-                      className="w-full rounded-md border border-zinc-300 px-1.5 py-1 text-sm"
+                    <select
+                      className="w-full rounded-md border border-zinc-300 bg-white px-1.5 py-1 text-sm disabled:bg-zinc-100"
                       value={value[i]?.goal ?? ""}
+                      disabled={!(value[i]?.side === "H" || value[i]?.side === "U")}
                       onChange={(e) => {
                         const next = value.slice();
-                        next[i] = { ...(next[i] ?? emptyEvent()), goal: e.target.value };
+                        const cur = next[i] ?? emptyEvent();
+                        const nextGoal = e.target.value;
+                        next[i] = { ...cur, goal: nextGoal, assist: nextGoal ? cur.assist : "" };
                         onChange(next);
                       }}
-                    />
+                    >
+                      <option value="">&nbsp;</option>
+                      {(() => {
+                        const side = value[i]?.side;
+                        if (side !== "H" && side !== "U") return null;
+                        const computed = nextGoalScore(value, i, side);
+                        const cur = norm(value[i]?.goal);
+                        const opts = new Set<string>();
+                        opts.add(computed);
+                        if (cur && cur !== computed) opts.add(cur);
+                        return Array.from(opts).map((s) => (
+                          <option key={s} value={s}>
+                            {s}
+                          </option>
+                        ));
+                      })()}
+                    </select>
                   </td>
                   <td className="px-2 py-2">
-                    <input
-                      className="w-full rounded-md border border-zinc-300 px-1.5 py-1 text-sm"
+                    <select
+                      className="w-full rounded-md border border-zinc-300 bg-white px-1.5 py-1 text-sm disabled:bg-zinc-100"
                       value={value[i]?.assist ?? ""}
+                      disabled={!(value[i]?.goal && (value[i]?.side === "H" || value[i]?.side === "U"))}
                       onChange={(e) => {
                         const next = value.slice();
                         next[i] = { ...(next[i] ?? emptyEvent()), assist: e.target.value };
                         onChange(next);
                       }}
-                    />
+                    >
+                      <option value="">&nbsp;</option>
+                      {(value[i]?.side === "H" ? homeNumbers : value[i]?.side === "U" ? awayNumbers : []).map((n) => (
+                        <option key={n} value={n}>
+                          {n}
+                        </option>
+                      ))}
+                    </select>
                   </td>
                   <td className="px-2 py-2">
-                    <input
-                      placeholder="min"
-                      className="w-full rounded-md border border-zinc-300 px-1.5 py-1 text-sm"
-                      value={value[i]?.penalty ?? ""}
+                    <select
+                      className="w-full rounded-md border border-zinc-300 bg-white px-1.5 py-1 text-sm"
+                      value={(value[i]?.penalty ?? "") as PenaltyMinutes}
                       onChange={(e) => {
+                        const nextPenalty = (e.target.value as PenaltyMinutes) ?? "";
                         const next = value.slice();
-                        next[i] = { ...(next[i] ?? emptyEvent()), penalty: e.target.value };
+                        const cur = next[i] ?? emptyEvent();
+
+                        const allowedCodes = new Set(CODE_OPTIONS_BY_PENALTY[nextPenalty].map((o) => o.code));
+                        const nextCode = !norm(cur.code) || allowedCodes.has(norm(cur.code)) ? cur.code : "";
+
+                        next[i] = { ...cur, penalty: nextPenalty, code: nextCode };
                         onChange(next);
                       }}
-                    />
+                    >
+                      {PENALTY_OPTIONS.map((o) => (
+                        <option key={o.value || "_"} value={o.value}>
+                          {o.label}
+                        </option>
+                      ))}
+                    </select>
                   </td>
                   <td className="px-2 py-2">
-                    <input
-                      className="w-full rounded-md border border-zinc-300 px-1.5 py-1 text-sm"
+                    <CodeSelect
                       value={value[i]?.code ?? ""}
-                      onChange={(e) => {
+                      penalty={(value[i]?.penalty ?? "") as PenaltyMinutes}
+                      onChange={(nextCode) => {
                         const next = value.slice();
-                        next[i] = { ...(next[i] ?? emptyEvent()), code: e.target.value };
+                        next[i] = { ...(next[i] ?? emptyEvent()), code: nextCode };
                         onChange(next);
                       }}
                     />
@@ -632,4 +845,90 @@ function EventsTable({
       </div>
     </div>
   );
+}
+
+function CodeSelect({
+  value,
+  penalty,
+  onChange,
+}: {
+  value: string;
+  penalty: PenaltyMinutes;
+  onChange: (next: string) => void;
+}) {
+  const options = CODE_OPTIONS_BY_PENALTY[penalty];
+  const allowed = new Set(options.map((o) => o.code));
+  const safeValue = allowed.has(norm(value)) ? norm(value) : "";
+
+  return (
+    <div className="relative">
+      <div className="w-full rounded-md border border-zinc-300 bg-white px-1.5 py-1 text-sm">
+        {safeValue ? safeValue : <span className="text-zinc-400">&nbsp;</span>}
+      </div>
+      <select
+        className="absolute inset-0 h-full w-full cursor-pointer opacity-0"
+        value={safeValue}
+        onChange={(e) => onChange(e.target.value)}
+      >
+        <option value="">&nbsp;</option>
+        {options.map((o) => (
+          <option key={o.code} value={o.code}>
+            {o.code} {o.description}
+          </option>
+        ))}
+      </select>
+    </div>
+  );
+}
+
+function validateEventsBeforeUpload(events: EventRow[], playersHome: PlayerRow[], playersAway: PlayerRow[]): string | null {
+  const homeNumbers = new Set(uniqueSortedNumbers(playersHome));
+  const awayNumbers = new Set(uniqueSortedNumbers(playersAway));
+  const validPeriods = new Set(["1", "2", "3", "OT"]);
+
+  for (let i = 0; i < events.length; i += 1) {
+    const e = events[i] ?? emptyEvent();
+    const rowNo = i + 1;
+    const any = Boolean(
+      norm(e.period) ||
+        norm(e.time) ||
+        norm(e.side) ||
+        norm(e.number) ||
+        norm(e.goal) ||
+        norm(e.assist) ||
+        norm(e.penalty) ||
+        norm(e.code)
+    );
+    if (!any) continue;
+
+    if (!validPeriods.has(norm(e.period))) return `Række ${rowNo}: Periode skal være 1, 2, 3 eller OT.`;
+    if (!isValidTime(e.time)) return `Række ${rowNo}: Tid skal være i format MM:SS og SS skal være 00-59.`;
+
+    const side = norm(e.side);
+    if (side !== "H" && side !== "U") return `Række ${rowNo}: H/U mangler.`;
+
+    const roster = side === "H" ? homeNumbers : awayNumbers;
+    const num = norm(e.number);
+    if (num && !roster.has(num)) return `Række ${rowNo}: Nr. (${num}) findes ikke på holdlisten.`;
+
+    const assist = norm(e.assist);
+    if (assist && !roster.has(assist)) return `Række ${rowNo}: Assist (${assist}) findes ikke på holdlisten.`;
+
+    const penalty = (norm(e.penalty) as PenaltyMinutes) || "";
+    if (!(penalty === "" || penalty === "2" || penalty === "4" || penalty === "2+10")) {
+      return `Række ${rowNo}: Udvisning skal være blank, 2, 4 eller 2+10.`;
+    }
+
+    const allowedCodes = new Set(CODE_OPTIONS_BY_PENALTY[penalty].map((o) => o.code));
+    const code = norm(e.code);
+    if (code && !allowedCodes.has(code)) {
+      return `Række ${rowNo}: Kode (${code}) passer ikke til valgt udvisning.`;
+    }
+
+    if (assist && !norm(e.goal)) {
+      return `Række ${rowNo}: Assist kræver at der er valgt et mål.`;
+    }
+  }
+
+  return null;
 }
