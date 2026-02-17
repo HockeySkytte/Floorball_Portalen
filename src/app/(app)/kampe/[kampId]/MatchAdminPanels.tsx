@@ -105,9 +105,8 @@ function digitsOnly(value: string): string {
 function formatTimeFromDigits(digits: string): string {
   const d = digitsOnly(digits).slice(0, 4);
   if (!d) return "";
-  if (d.length <= 2) return d;
-  const padded = d.padStart(4, "0");
-  return `${padded.slice(0, 2)}:${padded.slice(2)}`;
+  if (d.length < 4) return d;
+  return `${d.slice(0, 2)}:${d.slice(2)}`;
 }
 
 function isValidTime(value: string): boolean {
@@ -454,7 +453,7 @@ export default function MatchAdminPanels({
       ) : null}
 
       {open === "events" ? (
-        <LeftDrawer widthClass="w-[min(620px,100%)]" title="Indtast Events" onClose={() => setOpen(null)}>
+        <LeftDrawer widthClass="w-[min(760px,100%)]" title="Indtast Events" onClose={() => setOpen(null)}>
           <StatusLine loading={loading} saving={saving} error={saveError} />
           <EventsTable
             rows={eventRows}
@@ -655,8 +654,8 @@ function EventsTable({
                 <th className="w-[60px] px-2 py-2 text-left">Periode</th>
                 <th className="w-[72px] px-2 py-2 text-left">Tid</th>
                 <th className="w-[68px] px-2 py-2 text-left">H/U</th>
-                <th className="w-[56px] px-2 py-2 text-left">Nr.</th>
-                <th className="w-[56px] px-2 py-2 text-left">Mål</th>
+                <th className="w-[80px] px-2 py-2 text-left">Nr.</th>
+                <th className="w-[80px] px-2 py-2 text-left">Mål</th>
                 <th className="w-[64px] px-2 py-2 text-left">Assist</th>
                 <th className="w-[76px] px-2 py-2 text-left">Udvisning</th>
                 <th className="w-[76px] px-2 py-2 text-left">Kode</th>
@@ -691,7 +690,7 @@ function EventsTable({
                       onChange={(e) => {
                         const prev = norm(value[i]?.time);
                         const prevDigits = digitsOnly(prev);
-                        const nextDigits = digitsOnly(e.target.value).slice(0, 4);
+                        const nextDigits = digitsOnly(e.target.value).slice(-4);
                         const nextTime = formatTimeFromDigits(nextDigits);
 
                         // If the user reached a full mmss entry, ensure seconds are valid.
@@ -862,8 +861,9 @@ function CodeSelect({
 
   return (
     <div className="relative">
-      <div className="w-full rounded-md border border-zinc-300 bg-white px-1.5 py-1 text-sm">
+      <div className="relative w-full rounded-md border border-zinc-300 bg-white px-1.5 py-1 pr-6 text-sm">
         {safeValue ? safeValue : <span className="text-zinc-400">&nbsp;</span>}
+        <span className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 text-zinc-500">▾</span>
       </div>
       <select
         className="absolute inset-0 h-full w-full cursor-pointer opacity-0"
